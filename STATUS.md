@@ -99,8 +99,8 @@ the operating system.
 
 **Known gaps.**
 
-- Continuous integration is written and has never run. The first push proves it, or does
-  not.
+- Continuous integration passed on Linux, Windows and macOS on the first push, run
+  36287385822. Nothing in this repository has been run on Linux or macOS by hand.
 - The manifest is 1152 lines for five APIs, because every JSON Schema is inlined in full.
   It will not stay readable at fifty. A shared `$defs` section is the obvious answer and is
   a change to `schema_version`.

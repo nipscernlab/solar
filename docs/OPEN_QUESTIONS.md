@@ -250,14 +250,13 @@ with the first API that needs them. The reasons removed were `UNKNOWN_TOOL`,
 warning codes were `TOOL_TABLE_OVERRIDDEN`, `VERSION_NOT_PARSED` and
 `TOOL_EXITED_NON_ZERO`.
 
-### Continuous integration has not run yet
+### Continuous integration runs on three platforms
 
-The workflow builds and tests on `ubuntu-latest`, `windows-latest` and `macos-latest`.
-Everything in it was run on Windows before it was written, and none of it has been run on
-Linux or macOS.
+The workflow builds, lints, tests, checks the manifest and builds a release on
+`ubuntu-latest`, `windows-latest` and `macos-latest`, and a fourth job builds the API
+documentation with `-D warnings`.
 
-**Why this is worth saying.** The brief asks for three platforms tested in CI, and the
-first push is what will prove it. Two things are likeliest to break: the executable bit
-check in nothing, since no such code is left, and the end-of-line policy, which
-`.gitattributes` fixes at `lf` everywhere so that `cargo fmt --check` and the manifest
-comparison behave the same on all three.
+**State.** It ran on the first push and passed on all four jobs: run
+[36287385822](https://github.com/nipscernlab/solar/actions/runs/36287385822), with Windows
+the slowest at 6m24s. The work was done on Windows, so Linux and macOS were unverified
+until that run.
