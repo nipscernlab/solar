@@ -7,6 +7,24 @@ Every notable change to SOLAR, newest first. The format follows
 The protocol has a version of its own, `solar/1`, which is not this one. A change to the
 protocol is stated here in its own line.
 
+## [Unreleased]
+
+### Added
+
+- Twenty-seven decision records, 12 to 38, for everything that had been decided alone and
+  written in `docs/OPEN_QUESTIONS.md` while the first three stages were built. The
+  architect confirmed all of them on 27 September 2026, each as it was proposed. Record 18
+  is new rather than moved: it is the part of the superseded entry for a strictly
+  sequential session that is still a decision, which is that calls run one at a time in
+  the order they arrived. `docs/OPEN_QUESTIONS.md` now holds nothing open.
+
+### Changed
+
+- `actions/checkout` to 7.0.1 and `actions/upload-artifact` to 7.0.1, both pinned by
+  commit SHA with the version in a comment. Neither release changes anything this
+  repository relies on: the workflows use no `pull_request_target` or `workflow_run`, and
+  no upload sets `archive: false`.
+
 ## [0.2.0] - 2026-09-27
 
 Batches, cancellation, and memory that is bounded by a number rather than by hope. Every
@@ -132,5 +150,6 @@ unless it asks for one, the protocol stays `solar/1`, and no API changed shape.
 - `docs/STYLE.md`, `docs/adr/` with the nine settled decisions, `CONTRIBUTING.md`, a pull
   request template and `CODEOWNERS`.
 
+[Unreleased]: https://github.com/nipscernlab/solar/compare/v0.2.0...main
 [0.2.0]: https://github.com/nipscernlab/solar/releases/tag/v0.2.0
 [0.1.0]: https://github.com/nipscernlab/solar/commits/main
