@@ -288,7 +288,9 @@ holds the two together. CI runs on `ubuntu-latest`, `windows-latest` and `macos-
 and weekly on the latest stable compiler, on the declared minimum, on the fuzzing
 targets and on the mutation suite.
 
-[`CONTRIBUTING.md`](CONTRIBUTING.md) is the rest: adding an API, the rules about
+[`AGENTS.md`](AGENTS.md) is the entry point for anyone, or anything, about to change
+SOLAR: the one path for adding an API and the rules the machines enforce.
+[`CONTRIBUTING.md`](CONTRIBUTING.md) is the rest: setting up, the rules about
 dependencies, and how to record a session for a bug report.
 
 ## Who wrote this
