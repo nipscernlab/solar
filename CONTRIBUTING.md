@@ -108,11 +108,18 @@ cargo xtask coverage --report              # lcov and HTML in target/coverage
 cargo xtask mutants                        # the full mutation suite
 cargo xtask mutants -- --in-diff origin/main   # only what this branch changed
 cargo fuzz run envelope -- -max_total_time=60  # needs nightly; see fuzz/
+cargo xtask load                           # 10 000 requests through a real session
+cargo xtask load --soak                    # a million, to see whether memory grows
 ```
 
 Coverage says which lines ran. Mutation says whether anything checked what they did: it
-changes a line, runs the suite, and reports the lines where nothing failed. A surviving
-mutant in `solar-core` is a missing test.
+changes a line, runs the whole workspace suite, and reports the lines where nothing
+failed. A surviving mutant in `solar-core` is a missing test.
+
+`cargo xtask load` needs a release build to measure, and says so if there is none. What it
+reports is the latency a client sees, not the time dispatch spends, because that is the
+figure a caller can check. What one call allocates is a test rather than a command:
+`cargo test -p solar-apis --test heap -- --nocapture` prints it and holds a ceiling.
 
 ## Recording a session for a bug report
 

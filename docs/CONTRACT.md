@@ -1,6 +1,6 @@
 # The SOLAR contract
 
-**Status:** normative. **Protocol:** `solar/1`. **Applies to:** SOLAR `0.1.0`.
+**Status:** normative. **Protocol:** `solar/1`. **Applies to:** SOLAR `0.2.0`.
 
 This document defines the wire protocol of SOLAR, the central API of the Constellation
 project. It is normative: where this document and the implementation disagree, the

@@ -7,7 +7,11 @@ Every notable change to SOLAR, newest first. The format follows
 The protocol has a version of its own, `solar/1`, which is not this one. A change to the
 protocol is stated here in its own line.
 
-## [Unreleased]
+## [0.2.0] - 2026-09-27
+
+Batches, cancellation, and memory that is bounded by a number rather than by hope. Every
+change in this release is additive: a client written against 0.1.0 sees no difference
+unless it asks for one, the protocol stays `solar/1`, and no API changed shape.
 
 ### Added
 
@@ -41,6 +45,9 @@ protocol is stated here in its own line.
   resident memory of the server. The figures are in the README.
 - `crates/solar-apis/tests/heap.rs`, which counts what one `solar.ping` allocates with
   `dhat` and holds a ceiling, so a change that allocates more has to say why.
+- The rule for choosing between `/etc/os-release` and `/usr/lib/os-release` is no longer
+  compiled only on Linux: the paths still are, the rule is not, and five tests run it on
+  every system. It was judged by no test on Windows or on a Mac before.
 - Tests for the limits themselves: a line of exactly 16 MiB is read and one byte more is
   not, on both paths through the reader, and an oversized line reports the length it
   really was. The queue bounds and the window of remembered identifiers are compared with
@@ -112,4 +119,5 @@ protocol is stated here in its own line.
 - `docs/STYLE.md`, `docs/adr/` with the nine settled decisions, `CONTRIBUTING.md`, a pull
   request template and `CODEOWNERS`.
 
-[Unreleased]: https://github.com/nipscernlab/solar/commits/main
+[0.2.0]: https://github.com/nipscernlab/solar/releases/tag/v0.2.0
+[0.1.0]: https://github.com/nipscernlab/solar/commits/main

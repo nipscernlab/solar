@@ -92,10 +92,14 @@ jobs:
   mutants:
     name: mutation testing
     runs-on: ubuntu-latest
-    # The full run mutates every line of the two library crates and runs the suite for
-    # each one, which is long. Weekly is the right cadence; `cargo xtask mutants
-    # --in-diff` is the one to run before opening a pull request.
-    timeout-minutes: 90
+    # The full run mutates every line of the two library crates and runs the whole
+    # workspace suite for each one, which is long. Weekly is the right cadence;
+    # `cargo xtask mutants -- --in-diff origin/main` is the one to run before opening a
+    # pull request. Three hours rather than ninety minutes because the workspace suite
+    # per mutant is several times the cost of one crate's, and a job that is killed
+    # halfway measures nothing at all. What it really takes here is not known yet: the
+    # first run under this setting is the measurement.
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - name: Install the pinned toolchain
@@ -106,8 +110,10 @@ jobs:
         with:
           tool: cargo-mutants,cargo-nextest
 
+      # Four jobs, because a GitHub runner has four processors, and every mutant now runs
+      # the whole workspace suite rather than one crate's.
       - name: Mutate the shipped crates
-        run: cargo run --package xtask --locked --quiet -- mutants
+        run: cargo run --package xtask --locked --quiet -- mutants --jobs 4
 
       - name: Keep the report
         if: always()

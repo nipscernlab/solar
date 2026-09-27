@@ -21,6 +21,13 @@ exclude_re = [
   # until 27 September 2026, matched nothing, and the exclusion silently did not apply:
   # found by reading a run instead of trusting it, for the second time.
   "<impl .*(Display|Debug) for .*>::fmt",
+
+  # `line.is_empty() || line.starts_with('#')` in parse_os_release is a fast path, not a
+  # behaviour: with `&&` nothing is skipped, an empty line then reaches `split_once('=')`
+  # and is dropped for having no `=`, and a comment line becomes a key beginning with `#`
+  # that matches none of the six keys. The output is the same for every input, which is
+  # what an equivalent mutant is. The guard stays because it says what the loop means.
+  'replace \|\| with && in parse_os_release',
 ]
 
 # The whole workspace judges every mutant, not only the crate the mutant is in.

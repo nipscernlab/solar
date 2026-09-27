@@ -94,6 +94,7 @@ for the loop between commits; it is not the gate.
 | The release binary embeds no local path | `cargo xtask leak-check` |
 | Coverage of the shipped crates | `cargo xtask coverage`, floor in the source |
 | Lines nothing checks | `cargo xtask mutants`, ceiling in the source |
+| What one call allocates | `crates/solar-apis/tests/heap.rs`, ceiling in the source |
 
 ## Where the truth lives
 

@@ -31,7 +31,7 @@ cargo build --release
 ```
 
 ```json
-{"jsonrpc":"2.0","id":1,"result":{"data":{"echo":"hi","pong":true,"received_at":"2026-09-27T02:58:14.819113Z"},"meta":{"request_id":1,"method":"solar.ping","api_version":"1.0.0","solar_version":"0.1.0","protocol":"solar/1","started_at":"2026-09-27T02:58:14.818953Z","duration_us":170,"os":"windows","arch":"x86_64"},"warnings":[]}}
+{"jsonrpc":"2.0","id":1,"result":{"data":{"echo":"hi","pong":true,"received_at":"2026-09-27T17:28:02.071417Z"},"meta":{"request_id":1,"method":"solar.ping","api_version":"1.0.0","solar_version":"0.2.0","protocol":"solar/1","started_at":"2026-09-27T17:28:02.067765Z","duration_us":3674,"os":"windows","arch":"x86_64"},"warnings":[]}}
 ```
 
 Every other command in this file writes `solar` bare; put `target/release` on the `PATH`,
@@ -71,7 +71,7 @@ solar call solar.ping '{"mesage":"hi"}' || echo "exit $?"
 ```
 
 ```json
-{"jsonrpc":"2.0","id":1,"error":{"code":-32602,"message":"Invalid params for solar.ping: unknown field `mesage`, expected `message`.","data":{"status":"INVALID_ARGUMENT","reason":"UNKNOWN_FIELD","details":[{"field":"/mesage","expected":"one of: message","received":"hi","hint":"There is no mesage parameter. Did you mean message? A call that works: {\"message\":\"hi\"}.","docs":"docs/ERRORS.md#invalid_argument"}],"meta":{"request_id":1,"method":"solar.ping","api_version":"1.0.0","solar_version":"0.1.0","protocol":"solar/1","started_at":"2026-09-27T02:58:14.846800Z","duration_us":71,"os":"windows","arch":"x86_64"}}}}
+{"jsonrpc":"2.0","id":1,"error":{"code":-32602,"message":"Invalid params for solar.ping: unknown field `mesage`, expected `message`.","data":{"status":"INVALID_ARGUMENT","reason":"UNKNOWN_FIELD","details":[{"field":"/mesage","expected":"one of: message","received":"hi","hint":"There is no mesage parameter. Did you mean message? A call that works: {\"message\":\"hi\"}.","docs":"docs/ERRORS.md#invalid_argument"}],"meta":{"request_id":1,"method":"solar.ping","api_version":"1.0.0","solar_version":"0.2.0","protocol":"solar/1","started_at":"2026-09-27T17:28:02.368260Z","duration_us":129,"os":"windows","arch":"x86_64"}}}}
 ```
 
 Testing it by hand, from installing the toolchain to what to send back when something
@@ -80,18 +80,19 @@ fails, is [docs/TESTING_BY_HAND.md](docs/TESTING_BY_HAND.md).
 The whole contract is [docs/CONTRACT.md](docs/CONTRACT.md), and it is normative. The error
 catalogue is [docs/ERRORS.md](docs/ERRORS.md).
 
-## The five APIs of this stage
+## The six APIs
 
 | API | What it does |
 | --- | ------------- |
 | `solar.ping` | Answers immediately. The call to measure with, and the one to reach for when nothing else answers. |
+| `solar.cancel` | Asks the call carrying an `id` to stop, and reports what that did. The one call a session answers the moment it is read. |
 | `solar.version` | The version of SOLAR, the protocol, the manifest layout, and how this binary was built. |
 | `solar.manifest` | Every API this build answers to, with schemas and examples, in one document. |
 | `solar.describe` | One API, laid out the same way. The call to make before making any other. |
 | `system.info` | The operating system with its release, the processor and the process. |
 
-Nothing in this stage runs an external program, writes a file or touches the network, and
-every API says so in its own specification.
+None of them runs an external program, writes a file or touches the network, and every one
+says so in its own specification.
 
 ## The command line interface
 
@@ -112,13 +113,14 @@ solar list
 ```
 
 ```text
-SOLAR 0.1.0 speaks solar/1, and answers to 5 APIs:
+SOLAR 0.2.0 speaks solar/1, and answers to 6 APIs:
 
+  solar.cancel        1.0.0    Asks the call with this id to stop, and says what that did
   solar.describe      1.0.0    Describes one API, with its schemas and its examples
-  solar.manifest      1.0.0    Returns the manifest of every API this build answers to
+  solar.manifest      1.1.0    Returns the manifest of every API this build answers to
   solar.ping          1.0.0    Answers immediately, to prove SOLAR is there
   solar.version       1.0.0    Reports the version, the protocol and the build metadata
-  system.info         1.1.0    Reports the operating system, the processor and the process
+  system.info         1.2.0    Reports the operating system, the processor and the process
 
   solar describe <method>   everything about one of them
   solar call <method>       the whole envelope, as an agent sees it
@@ -280,14 +282,17 @@ request before reading the next, so responses come back in request order.
 
 ```text
 Cargo.toml                      the workspace, the shared lints, the release profile
-crates/solar-core/              protocol, errors, metadata, the Api template, registry, dispatch
+crates/solar-core/              protocol, errors, metadata, the Api template, registry, dispatch,
+                                the session and what it knows while it runs
 crates/solar-apis/              the APIs, one file each, and the single registration list
 crates/solar-cli/               the solar binary
-xtask/                          cargo xtask manifest, cargo xtask new-api
+xtask/                          the one command, and every check it runs
 manifest/solar.manifest.json    generated, versioned, checked by a test
+AGENTS.md                       the single entry point, for a person or a coding agent
 docs/CONTRACT.md                the contract, normative
 docs/ERRORS.md                  the error catalogue
 docs/ADDING_AN_API.md           the procedure for the next API
+docs/TESTING_BY_HAND.md         how to check it by hand, for somebody new to Rust
 docs/OPEN_QUESTIONS.md          what was decided without asking and is still open
 docs/adr/                       the decisions that are settled, one file each
 docs/STYLE.md                   how the prose, the comments and the errors are written

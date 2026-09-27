@@ -77,13 +77,33 @@ fn read_here() -> Result<Release, String> {
     read_os_release_file()
 }
 
+/// Where the os-release specification says to look, in the order it gives.
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+const OS_RELEASE_PATHS: [&str; 2] = ["/etc/os-release", "/usr/lib/os-release"];
+
 /// Reads the first os-release file that exists, in the order the specification gives.
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
 fn read_os_release_file() -> Result<Release, String> {
-    const PATHS: [&str; 2] = ["/etc/os-release", "/usr/lib/os-release"];
+    first_os_release(&OS_RELEASE_PATHS, |path| std::fs::read_to_string(path))
+}
+
+/// The same, with the reading passed in, so that the rule can be tested anywhere.
+///
+/// The paths are only there on Linux, and the code above them is only compiled there, so
+/// without this split the rule for choosing between two files would be judged by no test
+/// on Windows or on a Mac and by no mutation run except the weekly one. What is
+/// conditional now is the list of paths; what decides is not.
+#[allow(
+    dead_code,
+    reason = "only Linux and the systems that follow the os-release specification call               this, and the point of splitting it out is that the tests call it on every               system, including the ones where nothing else does"
+)]
+fn first_os_release(
+    paths: &[&str],
+    read: impl Fn(&str) -> std::io::Result<String>,
+) -> Result<Release, String> {
     let mut last = String::new();
-    for path in PATHS {
-        match std::fs::read_to_string(path) {
+    for path in paths {
+        match read(path) {
             Ok(text) => {
                 let release = parse_os_release(&text);
                 if release == Release::default() {
@@ -262,6 +282,70 @@ ID=arch
 BUILD_ID=rolling
 ANSI_COLOR="38;2;23;147;209"
 "#;
+
+    #[test]
+    fn the_first_readable_os_release_file_is_the_one_used() {
+        let reader = |path: &str| {
+            if path == "/second" {
+                Ok(UBUNTU.to_owned())
+            } else {
+                Err(std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    "no such file",
+                ))
+            }
+        };
+        let release =
+            first_os_release(&["/first", "/second"], reader).expect("the second file is readable");
+        assert_eq!(release.name.as_deref(), Some("Ubuntu"));
+    }
+
+    #[test]
+    fn the_order_of_the_paths_is_the_order_of_the_specification() {
+        // Both readable, and the first one wins: `/etc/os-release` overrides the
+        // fallback in `/usr/lib`, which is what the specification requires.
+        let reader = |path: &str| {
+            Ok(if path == "/first" {
+                "NAME=\"First\"\n".to_owned()
+            } else {
+                "NAME=\"Second\"\n".to_owned()
+            })
+        };
+        let release = first_os_release(&["/first", "/second"], reader).expect("both are readable");
+        assert_eq!(release.name.as_deref(), Some("First"));
+    }
+
+    #[test]
+    fn a_file_that_says_nothing_is_an_error_rather_than_an_empty_release() {
+        // Read, and holding none of the members that matter: reporting an empty release
+        // would look like an answer. The fallback is not tried, because the file that
+        // should have said was there and did not.
+        let reader = |_: &str| Ok("# nothing but a comment\n".to_owned());
+        let failure = first_os_release(&["/first", "/second"], reader)
+            .expect_err("a file that says nothing is not an answer");
+        assert!(failure.contains("/first"), "{failure}");
+        assert!(failure.contains("NAME"), "{failure}");
+    }
+
+    #[test]
+    fn no_readable_file_names_the_last_one_tried() {
+        let reader = |_: &str| {
+            Err(std::io::Error::new(
+                std::io::ErrorKind::PermissionDenied,
+                "denied",
+            ))
+        };
+        let failure =
+            first_os_release(&["/first", "/second"], reader).expect_err("nothing is readable");
+        assert!(failure.contains("/second"), "the last one tried: {failure}");
+        assert!(failure.contains("denied"), "and why: {failure}");
+    }
+
+    #[test]
+    fn no_paths_at_all_is_an_error_and_not_a_panic() {
+        let reader = |_: &str| Ok(String::new());
+        assert!(first_os_release(&[], reader).is_err());
+    }
 
     #[test]
     fn a_real_os_release_file_is_read() {
