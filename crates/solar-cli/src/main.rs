@@ -190,7 +190,7 @@ fn read_params(method: &str, params: Option<&str>) -> Result<Value, Box<Response
         argument.to_owned()
     };
 
-    let trimmed = text.trim();
+    let trimmed = solar_core::text::strip_bom(text.trim()).trim();
     serde_json::from_str::<Value>(trimmed).map_err(|failure| {
         refused(
             method,

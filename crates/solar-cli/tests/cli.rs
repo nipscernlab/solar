@@ -230,6 +230,24 @@ fn a_session_survives_a_broken_line_and_keeps_going() {
 }
 
 #[test]
+fn a_byte_order_mark_does_not_cost_a_caller_its_first_request() {
+    // Windows PowerShell writes one in front of the first line it sends to a native
+    // program. RFC 8259 allows a parser to ignore it, and SOLAR does.
+    let input = "\u{feff}{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"solar.ping\"}\n\
+                 {\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"solar.ping\"}\n";
+    let output = serve(input);
+    let ids: Vec<i64> = stdout_of(&output)
+        .lines()
+        .map(|line| parse(line)["id"].as_i64().unwrap_or(-1))
+        .collect();
+    assert_eq!(
+        ids,
+        vec![1, 2],
+        "the first request was lost to the byte order mark"
+    );
+}
+
+#[test]
 fn a_session_with_no_transport_is_refused() {
     let output = solar(&["serve"]);
     assert_eq!(output.status.code(), Some(2));

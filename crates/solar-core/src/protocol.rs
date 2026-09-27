@@ -11,7 +11,7 @@ use crate::error::{ErrorDetail, SolarError};
 use crate::meta::{Meta, PROTOCOL};
 use crate::reason::Reason;
 use crate::status::Status;
-use crate::text::{is_valid_method_name, truncate};
+use crate::text::{is_valid_method_name, strip_bom, truncate};
 use crate::warning::Warning;
 
 /// The largest request line SOLAR reads, in bytes, not counting the newline.
@@ -146,6 +146,7 @@ pub fn type_name(value: &Value) -> &'static str {
 /// object, has no usable `id`, does not declare `"jsonrpc": "2.0"`, has no valid `method`,
 /// or carries a `params` that is not an object.
 pub fn parse_request(line: &str) -> Result<Request, RequestError> {
+    let line = strip_bom(line);
     let value: Value = match serde_json::from_str(line) {
         Ok(value) => value,
         Err(parse) => {

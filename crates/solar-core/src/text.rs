@@ -37,6 +37,17 @@ fn is_lowercase_word(word: &str) -> bool {
     !word.is_empty() && word.bytes().all(|b| b.is_ascii_lowercase())
 }
 
+/// Drops a byte order mark from the front of a string.
+///
+/// Nothing should send one: RFC 8259 forbids adding a byte order mark to JSON. Windows
+/// PowerShell adds one anyway, to the first thing it writes into the standard input of a
+/// native program, which used to cost a caller its first request. The same RFC allows a
+/// parser to ignore one, so SOLAR ignores it.
+#[must_use]
+pub fn strip_bom(text: &str) -> &str {
+    text.strip_prefix('\u{feff}').unwrap_or(text)
+}
+
 /// The Levenshtein edit distance between two strings, counted in characters.
 ///
 /// The implementation keeps two rows rather than the whole matrix, so the cost is linear in
@@ -193,6 +204,16 @@ mod tests {
         assert_eq!(found[0], ("a.aa", 0));
         assert_eq!(found[1].0, "a.ab");
         assert_eq!(found[2].0, "a.ac");
+    }
+
+    #[test]
+    fn a_byte_order_mark_at_the_front_is_ignored() {
+        assert_eq!(strip_bom("\u{feff}{\"id\":1}"), "{\"id\":1}");
+        assert_eq!(strip_bom("{}"), "{}");
+        assert_eq!(strip_bom(""), "");
+        // Only at the front, and only one of them.
+        assert_eq!(strip_bom("a\u{feff}b"), "a\u{feff}b");
+        assert_eq!(strip_bom("\u{feff}\u{feff}x"), "\u{feff}x");
     }
 
     #[test]

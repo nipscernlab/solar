@@ -31,6 +31,10 @@ Two properties drive every decision in this document.
 - **Encoding.** UTF-8. A line that is not valid UTF-8 is a parse error.
 - **Line endings.** A trailing `\r` before the `\n` is accepted and stripped, so a caller
   writing CRLF on Windows interoperates. SOLAR itself always writes `\n`.
+- **Byte order mark.** A `U+FEFF` at the front of a line is ignored. RFC 8259 forbids
+  adding one to JSON and allows a parser to ignore one, and Windows PowerShell adds one to
+  the first thing it writes into the standard input of a native program. Refusing it would
+  cost every PowerShell caller its first request.
 - **Empty lines.** A line that is empty or contains only whitespace is ignored and produces
   no response. It is not a message.
 - **Size limit.** A single request line MUST NOT exceed **16 MiB** (16777216 bytes,
