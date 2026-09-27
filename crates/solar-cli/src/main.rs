@@ -337,14 +337,26 @@ fn replay(dispatcher: &Dispatcher, file: &std::path::Path) -> std::io::Result<Ex
             return Ok(ExitCode::from(Status::NotFound.exit_code()));
         }
     };
-    let entries = match solar_core::recording::read(&text) {
-        Ok(entries) => entries,
+    let recording = match solar_core::recording::read(&text) {
+        Ok(recording) => recording,
         Err(why) => {
-            eprintln!("solar: {} is not a recording: {why}", file.display());
+            eprintln!("solar: {} cannot be replayed: {why}", file.display());
             return Ok(ExitCode::from(Status::InvalidArgument.exit_code()));
         }
     };
 
+    match &recording.header {
+        Some(header) => logging::info(&format!(
+            "replaying a recording of format {}, written by SOLAR {} speaking {}",
+            header.solar_recording, header.solar_version, header.protocol
+        )),
+        None => eprintln!(
+            "solar: {} has no header, so it was written before the recording format was              versioned. Reading it as format 1.0.0, which is what it looks like.              docs/RECORDING.md says what a header is.",
+            file.display()
+        ),
+    }
+
+    let entries = recording.entries;
     let mut answers: Vec<String> = entries
         .iter()
         .filter(|entry| entry.direction == Direction::Out)
@@ -416,7 +428,7 @@ fn response_duration_us(response: &Response) -> u64 {
     meta.map_or(0, |meta| meta.duration_us)
 }
 
-/// The exit code a response deserves, from the table in section 12 of the contract.
+/// The exit code a response deserves, from the table in section 14 of the contract.
 fn exit_code_of(response: &Response) -> ExitCode {
     match response.status() {
         None => ExitCode::SUCCESS,

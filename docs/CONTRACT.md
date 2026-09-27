@@ -498,7 +498,28 @@ session does not grow with every call it has ever answered.
   8.1.
 - **SOLAR**: the version of the build, reported in `meta.solar_version`.
 
-## 12. Conformance
+## 12. Recording a session
+
+`solar serve --stdio --record <file>` writes every line that crosses, with the time it
+crossed, and `solar replay <file>` sends the requests again and reports where the answers
+differ. The file is **NDJSON with a header line naming a format version**, and
+[`RECORDING.md`](RECORDING.md) is its normative specification, with a JSON Schema for one
+line.
+
+What this section promises, and what `RECORDING.md` details:
+
+- **A recording is versioned.** The first line declares `solar_recording`, semantic, and a
+  reader refuses a file whose major it does not know rather than guessing at it.
+- **A line is kept as it crossed**, as a string, without its newline and without being
+  re-serialised. A line that was never valid JSON is recorded as faithfully as one that
+  was, because a recording of a parse error is worth keeping.
+- **Something other than SOLAR may write one.** A file that follows `RECORDING.md`
+  replays, whatever wrote it.
+- **Replay ignores only what cannot be reproduced**: the members of `meta` that differ
+  between any two runs, and every timestamp anywhere in a response. Everything else,
+  including the whole of `result.data`, is compared as it stands.
+
+## 13. Conformance
 
 Every rule above is enforced mechanically. A change that breaks one of them fails a test
 instead of waiting for a human reviewer.
@@ -525,7 +546,7 @@ instead of waiting for a human reviewer.
 | A response larger than its API declares is refused | `solar-core/tests/dispatch.rs::a_response_larger_than_the_api_declares_is_refused` |
 | Abandoned handlers are capped, and the count is visible | `solar-core/tests/abandoned.rs::abandoned_handlers_are_capped_and_the_count_is_visible` |
 
-## 13. Exit codes of the `solar` binary
+## 14. Exit codes of the `solar` binary
 
 `solar call` prints the whole response envelope on standard output and then exits with a
 code derived from the response, so that a shell script never has to parse JSON to know what

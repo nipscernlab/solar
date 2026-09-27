@@ -104,7 +104,7 @@ impl Status {
         format!("docs/ERRORS.md#{}", self.as_str().to_lowercase())
     }
 
-    /// The process exit code `solar call` uses for this status, per section 13.
+    /// The process exit code `solar call` uses for this status, per section 14.
     #[must_use]
     pub const fn exit_code(self) -> u8 {
         match self {

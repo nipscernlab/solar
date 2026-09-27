@@ -105,6 +105,7 @@ for the loop between commits; it is not the gate.
 | How to add an API | [`docs/ADDING_AN_API.md`](docs/ADDING_AN_API.md) |
 | How to write it | [`docs/STYLE.md`](docs/STYLE.md) |
 | How to test it by hand, for somebody new | [`docs/TESTING_BY_HAND.md`](docs/TESTING_BY_HAND.md) |
+| What a recorded session holds | [`docs/RECORDING.md`](docs/RECORDING.md), normative |
 | Why it is the way it is | [`docs/adr/`](docs/adr/) |
 | What is still undecided | [`docs/OPEN_QUESTIONS.md`](docs/OPEN_QUESTIONS.md) |
 | How to set up, and the rules for dependencies | [`CONTRIBUTING.md`](CONTRIBUTING.md) |

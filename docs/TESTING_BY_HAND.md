@@ -16,10 +16,10 @@ There are two halves to the testing:
    of its own beyond `solar` on a command line: ZENITH is how a person drives it. Its own
    guide is the one to follow, and this guide does not repeat it.
 
-   *Checked on 27 September 2026:* ZENITH is a Rust project with `docs/DESIGN.md`,
-   `docs/STYLE.md`, `docs/OPEN_QUESTIONS.md` and `docs/adr/`, and it does not yet carry a
-   guide for testing by hand. When it does, that is the one to follow for this half. Ask
-   Chrysthofer which revision of ZENITH to test against.
+   **[ZENITH's own `docs/TESTING_BY_HAND.md`](https://github.com/nipscernlab/zenith/blob/main/docs/TESTING_BY_HAND.md)
+   is the guide for that half**, *Testing SOLAR by hand, through ZENITH*, checked on
+   27 September 2026. Follow it there; this guide does not repeat it. Ask Chrysthofer
+   which revision of ZENITH to test against.
 
 ---
 
@@ -217,7 +217,7 @@ An error envelope, not a crash. It should name the field, say what was expected,
 arrived, suggest `message`, give a call that works, and point at
 `docs/ERRORS.md#invalid_argument`. The process then exits with code **2**, which is what
 `INVALID_ARGUMENT` maps to, and the `|| echo` above prints it. Every status has an exit
-code of its own; section 13 of [`CONTRACT.md`](CONTRACT.md) is the table.
+code of its own; section 14 of [`CONTRACT.md`](CONTRACT.md) is the table.
 
 ### A session, which is how everything except the command line talks to SOLAR
 
@@ -326,6 +326,11 @@ matters more often than not.
    Do the thing that went wrong, press Ctrl+D, and send `session.ndjson`. It can be
    replayed here against any build with `solar replay session.ndjson`, which is the
    difference between a bug we can see and a bug we can only imagine.
+
+   The file is NDJSON: a header line naming the format version, then one line per line
+   that crossed, with the time it crossed. [`RECORDING.md`](RECORDING.md) specifies it, so
+   a recording exported by ZENITH replays here too. `solar replay` refuses a format
+   version it does not know rather than guessing at it.
 
 **What not to send:** the whole `target/` directory, which is hundreds of megabytes and
 holds nothing we do not already have.

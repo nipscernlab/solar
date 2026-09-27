@@ -227,12 +227,16 @@ pub fn serve_recording<R: BufRead + Send, W: Write + Send, F: Write + Send>(
     dispatcher: &Dispatcher,
     recorder: Option<&mut F>,
 ) -> std::io::Result<u64> {
+    let mut recorder = recorder.map(Recorder::new);
+    if let Some(recorder) = recorder.as_mut() {
+        // The first line of a recording says what the file is, so that a reader knows
+        // before it reads. `docs/RECORDING.md` is the specification.
+        recorder.write_header()?;
+    }
+
     let wiring = Wiring {
         state: Arc::new(SessionState::new()),
-        sink: Mutex::new(Sink {
-            output,
-            recorder: recorder.map(Recorder::new),
-        }),
+        sink: Mutex::new(Sink { output, recorder }),
         dispatcher,
         answered: AtomicU64::new(0),
     };

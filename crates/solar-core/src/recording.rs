@@ -6,7 +6,11 @@
 //! <file>` sends the requests again and says where the answers differ.
 //!
 //! The file is NDJSON, one entry per line, so it can be read by anything and trimmed with
-//! a text editor before being attached to a report.
+//! a text editor before being attached to a report. Its **first line is a header** naming
+//! the format version, so that a reader knows what it is holding and a writer that is not
+//! SOLAR, such as ZENITH exporting a session, can produce a file `solar replay` accepts.
+//!
+//! `docs/RECORDING.md` is the specification, with a JSON Schema for one line.
 
 use std::io::Write;
 
@@ -14,6 +18,49 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::clock;
+
+/// The version of the recording format this build writes.
+///
+/// Semantic, and read the same way as every other version here: a reader refuses a file
+/// whose **major** differs from the one it was written against, and reads one whose minor
+/// moved by ignoring what it does not know.
+pub const RECORDING_FORMAT_VERSION: &str = "1.0.0";
+
+/// The first line of a recording, which says what the file is.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Header {
+    /// The version of this format. The member is named so that a reader can tell a header
+    /// from an entry by looking for it, without positional rules.
+    pub solar_recording: String,
+    /// When the recording started: RFC 3339, UTC, microseconds.
+    pub at: String,
+    /// The SOLAR that wrote it, or whatever wrote it in SOLAR's place.
+    pub solar_version: String,
+    /// The protocol the lines below speak.
+    pub protocol: String,
+}
+
+impl Header {
+    /// The header this build writes.
+    #[must_use]
+    pub fn current() -> Self {
+        Self {
+            solar_recording: RECORDING_FORMAT_VERSION.to_owned(),
+            at: clock::now_rfc3339_micros(),
+            solar_version: crate::meta::SOLAR_VERSION.to_owned(),
+            protocol: crate::meta::PROTOCOL.to_owned(),
+        }
+    }
+}
+
+/// A recording that has been read: what the file says it is, and what it holds.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Recording {
+    /// The header, absent in a file written before the format was versioned.
+    pub header: Option<Header>,
+    /// The lines that crossed, in the order they crossed.
+    pub entries: Vec<Entry>,
+}
 
 /// Which way a line crossed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -48,6 +95,19 @@ impl<W: Write> Recorder<W> {
         Self { into }
     }
 
+    /// Writes the header, which is the first line of every recording.
+    ///
+    /// # Errors
+    ///
+    /// Returns whatever the underlying writer returned.
+    pub fn write_header(&mut self) -> std::io::Result<()> {
+        let header = Header::current();
+        let text = serde_json::to_string(&header)
+            .unwrap_or_else(|_| format!(r#"{{"solar_recording":"{RECORDING_FORMAT_VERSION}"}}"#));
+        writeln!(self.into, "{text}")?;
+        self.into.flush()
+    }
+
     /// Writes one line down.
     ///
     /// # Errors
@@ -72,12 +132,42 @@ impl<W: Write> Recorder<W> {
 /// # Errors
 ///
 /// Returns which line of the file could not be read and why.
-pub fn read(text: &str) -> Result<Vec<Entry>, String> {
+pub fn read(text: &str) -> Result<Recording, String> {
+    let mut header = None;
     let mut entries = Vec::new();
+
     for (number, line) in text.lines().enumerate() {
         if line.trim().is_empty() {
             continue;
         }
+
+        // A header is told from an entry by the member that names the format, so the two
+        // can be told apart without a rule about which line they sit on.
+        let looks_like_a_header = serde_json::from_str::<Value>(line)
+            .ok()
+            .is_some_and(|value| value.get("solar_recording").is_some());
+
+        if looks_like_a_header {
+            if header.is_some() {
+                return Err(format!(
+                    "line {} declares the recording format again; a recording has one header, on its first line",
+                    number + 1
+                ));
+            }
+            if number != 0 {
+                return Err(format!(
+                    "line {} declares the recording format, and the header belongs on the first line",
+                    number + 1
+                ));
+            }
+            let read: Header = serde_json::from_str(line).map_err(|failure| {
+                format!("line 1 says it is a recording header and is not one: {failure}")
+            })?;
+            check_version(&read.solar_recording)?;
+            header = Some(read);
+            continue;
+        }
+
         let entry: Entry = serde_json::from_str(line).map_err(|failure| {
             format!(
                 "line {} of the recording is not an entry: {failure}",
@@ -86,7 +176,31 @@ pub fn read(text: &str) -> Result<Vec<Entry>, String> {
         })?;
         entries.push(entry);
     }
-    Ok(entries)
+
+    Ok(Recording { header, entries })
+}
+
+/// Whether this build can read a recording that declares this version.
+///
+/// # Errors
+///
+/// Returns a sentence naming both versions and what to do about it. A reader that guessed
+/// here would replay a file it does not understand and report differences that are the
+/// format's rather than SOLAR's.
+fn check_version(declared: &str) -> Result<(), String> {
+    let major = |version: &str| {
+        version
+            .split_once('.')
+            .map_or_else(|| version.to_owned(), |(major, _)| major.to_owned())
+    };
+
+    if major(declared) == major(RECORDING_FORMAT_VERSION) {
+        return Ok(());
+    }
+
+    Err(format!(
+        "the recording declares format {declared}, and this build reads          {RECORDING_FORMAT_VERSION}. A major version differs, which means the shape of a          line may have changed, so replaying it would compare things that are not          comparable. Use a SOLAR that reads format {declared}, or export the session again          from whatever wrote it. docs/RECORDING.md says what each version holds."
+    ))
 }
 
 /// The members of `meta` that differ between two runs of the same call.
@@ -180,7 +294,7 @@ mod tests {
         recorder.record(Direction::In, "{\"a\":1}").unwrap();
         recorder.record(Direction::Out, "{\"b\":2}").unwrap();
 
-        let entries = read(&String::from_utf8(written).unwrap()).unwrap();
+        let entries = read(&String::from_utf8(written).unwrap()).unwrap().entries;
         assert_eq!(entries.len(), 2);
         assert_eq!(entries[0].direction, Direction::In);
         assert_eq!(entries[0].line, "{\"a\":1}");
@@ -204,7 +318,7 @@ mod tests {
 
         let text = String::from_utf8(written).unwrap();
         assert_eq!(text.lines().count(), 1);
-        assert_eq!(read(&text).unwrap()[0].line, "{\"a\":\"one\ntwo\"}");
+        assert_eq!(read(&text).unwrap().entries[0].line, "{\"a\":\"one\ntwo\"}");
     }
 
     #[test]
