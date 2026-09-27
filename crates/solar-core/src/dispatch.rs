@@ -7,7 +7,7 @@
 use std::any::Any;
 use std::cell::Cell;
 use std::panic::{AssertUnwindSafe, catch_unwind};
-use std::sync::mpsc::{RecvTimeoutError, sync_channel};
+use std::sync::mpsc::{Receiver, RecvTimeoutError, SyncSender, sync_channel};
 use std::sync::{Arc, Once};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -234,82 +234,143 @@ fn elapsed_us(start: Instant) -> u64 {
     u64::try_from(start.elapsed().as_micros()).unwrap_or(u64::MAX)
 }
 
-/// Runs a handler on a worker thread and waits for it, at most for `budget`.
+/// The work of one call, ready to run on the worker thread.
+type Job = Box<dyn FnOnce() -> Result<Value, SolarError> + Send + 'static>;
+
+/// What comes back from the worker thread: what the handler returned, or how it panicked.
+type Outcome = Result<Result<Value, SolarError>, PanicRecord>;
+
+/// A thread that runs handlers, one after another, for the thread that dispatches.
+///
+/// Starting a thread costs around seventy microseconds on the machines SOLAR runs on,
+/// which was more than everything else a call does put together. One thread is therefore
+/// started per dispatching thread and reused, and only a call that runs past its budget
+/// costs another one, because the thread it left behind can never be trusted again.
+struct Worker {
+    jobs: SyncSender<Job>,
+    outcomes: Receiver<Outcome>,
+}
+
+impl Worker {
+    /// Starts the thread and the two channels that talk to it.
+    fn start() -> std::io::Result<Worker> {
+        let (job_sender, job_receiver) = sync_channel::<Job>(1);
+        let (outcome_sender, outcome_receiver) = sync_channel::<Outcome>(1);
+
+        thread::Builder::new()
+            .name("solar:worker".to_owned())
+            .spawn(move || {
+                IN_DISPATCH.set(true);
+                while let Ok(job) = job_receiver.recv() {
+                    LAST_PANIC_LOCATION.set(None);
+                    let outcome = match catch_unwind(AssertUnwindSafe(job)) {
+                        Ok(result) => Ok(result),
+                        Err(payload) => Err(PanicRecord {
+                            message: panic_message(payload.as_ref()),
+                            location: LAST_PANIC_LOCATION.get(),
+                        }),
+                    };
+                    // A send that fails means the call was given up on. Its result is worth
+                    // nothing to anyone, and neither is this thread.
+                    if outcome_sender.send(outcome).is_err() {
+                        break;
+                    }
+                }
+            })?;
+
+        Ok(Worker {
+            jobs: job_sender,
+            outcomes: outcome_receiver,
+        })
+    }
+}
+
+thread_local! {
+    /// The worker of this dispatching thread, started when it is first needed.
+    static WORKER: std::cell::RefCell<Option<Worker>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Runs a handler on the worker thread and waits for it, at most for `budget`.
 ///
 /// Three things can come back: an output, an error the handler built, or a panic. A fourth
 /// case is that nothing comes back in time, and that is what the budget is for. The thread
 /// is abandoned rather than killed, which section 9 of the contract states plainly,
-/// because there is no safe way to kill a thread in Rust.
+/// because there is no safe way to kill a thread in Rust. An abandoned thread is never
+/// reused: the worker is dropped, and the next call starts a fresh one.
 fn run_with_budget(
     ctx: &Arc<Context>,
     name: &'static str,
     params: Box<dyn Any + Send>,
     budget: Duration,
 ) -> Result<Value, SolarError> {
-    let (sender, receiver) = sync_channel::<Result<Result<Value, SolarError>, PanicRecord>>(1);
     let worker_ctx = Arc::clone(ctx);
-
-    let spawned = thread::Builder::new()
-        .name(format!("solar:{name}"))
-        .spawn(move || {
-            IN_DISPATCH.set(true);
-            LAST_PANIC_LOCATION.set(None);
-            let outcome =
-                catch_unwind(AssertUnwindSafe(|| match worker_ctx.registry().get(name) {
-                    Some(entry) => entry.invoke(&worker_ctx, params),
-                    None => Err(SolarError::new(
-                        Reason::InvariantBroken,
-                        format!("{name} vanished from the registry while it was running."),
-                    )),
-                }));
-            let message = match outcome {
-                Ok(result) => Ok(result),
-                Err(payload) => Err(PanicRecord {
-                    message: panic_message(payload.as_ref()),
-                    location: LAST_PANIC_LOCATION.get(),
-                }),
-            };
-            let _ = sender.send(message);
-        });
-
-    let handle = match spawned {
-        Ok(handle) => handle,
-        Err(failure) => {
-            return Err(SolarError::new(
-                Reason::ThreadSpawnFailed,
-                format!("SOLAR could not start the worker thread for {name}: {failure}."),
-            )
-            .with_detail(
-                ErrorDetail::new(Status::Unavailable)
-                    .field("method")
-                    .expected("a thread from the operating system")
-                    .received(Value::String(failure.to_string()))
-                    .hint("The machine is out of threads or out of memory. Retry once the load drops."),
-            ));
-        }
-    };
-
-    match receiver.recv_timeout(budget) {
-        Ok(Ok(result)) => {
-            let _ = handle.join();
-            result
-        }
-        Ok(Err(panic)) => {
-            let _ = handle.join();
-            Err(panic_error(name, &panic))
-        }
-        Err(RecvTimeoutError::Timeout) => Err(timeout_error(name, budget)),
-        Err(RecvTimeoutError::Disconnected) => Err(SolarError::new(
+    let job: Job = Box::new(move || match worker_ctx.registry().get(name) {
+        Some(entry) => entry.invoke(&worker_ctx, params),
+        None => Err(SolarError::new(
             Reason::InvariantBroken,
-            format!("The worker thread of {name} ended without answering."),
-        )
-        .with_detail(
-            ErrorDetail::new(Status::Internal)
-                .field("method")
-                .expected("an answer from the worker thread")
-                .hint("Report this with the exact request that caused it."),
+            format!("{name} vanished from the registry while it was running."),
         )),
-    }
+    });
+
+    WORKER.with_borrow_mut(|slot| {
+        if slot.is_none() {
+            match Worker::start() {
+                Ok(worker) => *slot = Some(worker),
+                Err(failure) => return Err(thread_spawn_error(name, &failure)),
+            }
+        }
+
+        let Some(worker) = slot.as_ref() else {
+            return Err(SolarError::new(
+                Reason::InvariantBroken,
+                format!("The worker thread for {name} was started and then lost."),
+            ));
+        };
+
+        let outcome = match worker.jobs.send(job) {
+            Ok(()) => worker.outcomes.recv_timeout(budget),
+            Err(_) => Err(RecvTimeoutError::Disconnected),
+        };
+
+        let (result, keep_the_worker) = match outcome {
+            Ok(Ok(result)) => (result, true),
+            Ok(Err(panic)) => (Err(panic_error(name, &panic)), true),
+            Err(RecvTimeoutError::Timeout) => (Err(timeout_error(name, budget)), false),
+            Err(RecvTimeoutError::Disconnected) => (
+                Err(SolarError::new(
+                    Reason::InvariantBroken,
+                    format!("The worker thread of {name} ended without answering."),
+                )
+                .with_detail(
+                    ErrorDetail::new(Status::Internal)
+                        .field("method")
+                        .expected("an answer from the worker thread")
+                        .hint("Report this with the exact request that caused it."),
+                )),
+                false,
+            ),
+        };
+
+        if !keep_the_worker {
+            *slot = None;
+        }
+        result
+    })
+}
+
+/// The error a machine that cannot start a thread becomes.
+fn thread_spawn_error(name: &str, failure: &std::io::Error) -> SolarError {
+    SolarError::new(
+        Reason::ThreadSpawnFailed,
+        format!("SOLAR could not start the worker thread for {name}: {failure}."),
+    )
+    .with_detail(
+        ErrorDetail::new(Status::Unavailable)
+            .field("method")
+            .expected("a thread from the operating system")
+            .received(Value::String(failure.to_string()))
+            .hint("The machine is out of threads or out of memory. Retry once the load drops."),
+    )
 }
 
 /// The `INTERNAL` error a panicking handler becomes.

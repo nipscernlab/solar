@@ -157,7 +157,25 @@ fn parameters<W: Write>(out: &mut W, schema: &Value) -> std::io::Result<()> {
 }
 
 /// `solar version`: the three versions and the build, one per line.
-pub(crate) fn version<W: Write>(out: &mut W, data: &Value) -> std::io::Result<()> {
+///
+/// On a terminal the mark is drawn beside the first four lines, which is the only place
+/// in this binary where it appears. `docs/brand/README.md` says why.
+pub(crate) fn version<W: Write>(
+    out: &mut W,
+    data: &Value,
+    decorate: bool,
+    colour: bool,
+) -> std::io::Result<()> {
+    if decorate {
+        let beside = vec![
+            "SOLAR".to_owned(),
+            "The central API of the Constellation".to_owned(),
+            "NIPS-CERN".to_owned(),
+            text(data, "solar_version").to_owned(),
+        ];
+        write!(out, "{}", crate::banner::beside(&beside, colour))?;
+        writeln!(out)?;
+    }
     writeln!(out, "solar          {}", text(data, "solar_version"))?;
     writeln!(out, "protocol       {}", text(data, "protocol"))?;
     writeln!(

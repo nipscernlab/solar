@@ -28,6 +28,7 @@ use solar_core::protocol::{RequestId, Response};
 use solar_core::reason::Reason;
 use solar_core::status::Status;
 
+mod banner;
 mod render;
 
 /// The exit code for a response that could not be written at all.
@@ -312,8 +313,10 @@ fn version(dispatcher: &Dispatcher) -> std::io::Result<ExitCode> {
     match human_call(dispatcher, "solar.version", json!({})) {
         Err(response) => Ok(report(&response)),
         Ok(data) => {
+            // The mark belongs in output meant for a person, never in a pipe.
+            let decorate = std::io::stdout().is_terminal();
             let mut out = std::io::stdout().lock();
-            render::version(&mut out, &data)?;
+            render::version(&mut out, &data, decorate, banner::wants_colour())?;
             out.flush()?;
             Ok(ExitCode::SUCCESS)
         }

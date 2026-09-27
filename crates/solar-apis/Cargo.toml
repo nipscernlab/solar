@@ -18,7 +18,12 @@ serde.workspace = true
 serde_json.workspace = true
 
 [dev-dependencies]
+criterion.workspace = true
 jsonschema.workspace = true
+
+[[bench]]
+name = "dispatch"
+harness = false
 
 [lints]
 workspace = true

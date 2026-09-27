@@ -1,0 +1,30 @@
+# Changelog
+
+Every notable change to SOLAR, newest first. The format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the versions follow
+[semantic versioning](https://semver.org/spec/v2.0.0.html).
+
+The protocol has a version of its own, `solar/1`, which is not this one. A change to the
+protocol is stated here in its own line.
+
+## [Unreleased]
+
+### Added
+
+- The `solar/1` protocol: JSON-RPC 2.0 over standard input and output, one message per
+  line, with two deliberate deviations. Notifications are refused, because every call gets
+  a response, and batches are `UNIMPLEMENTED` in this version.
+- `solar-core`: the envelope, the eleven canonical statuses and the reason catalogue, the
+  `Api` template, the registry that checks it, dispatch with a worker thread per call that
+  turns a panic into `INTERNAL` and an overrun budget into `DEADLINE_EXCEEDED`, the NDJSON
+  session loop with a 16 MiB line limit, and the manifest generator.
+- Five APIs: `solar.ping`, `solar.version`, `solar.manifest`, `solar.describe` and
+  `system.info`.
+- The `solar` binary: `call`, `serve --stdio`, `list`, `describe`, `manifest` and
+  `version`, with an exit code per status.
+- `cargo xtask manifest` and `cargo xtask new-api <name>`.
+- `docs/CONTRACT.md`, `docs/ERRORS.md`, `docs/ADDING_AN_API.md` and
+  `docs/OPEN_QUESTIONS.md`.
+- Continuous integration on Linux, Windows and macOS.
+
+[Unreleased]: https://github.com/nipscernlab/solar/commits/main
