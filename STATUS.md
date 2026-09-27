@@ -147,7 +147,7 @@ Measured on 27 September 2026, after a local mutation run filled the disk.
 | `target/debug` | **11.94 GB** | **1.33 GB** |
 | `target/ci`, the nested tree of the one command | 8.61 GB, kept between runs | removed when `cargo xtask ci` finishes |
 | `target/llvm-cov-target` | 1.82 GB, kept | removed with it |
-| `target/` in all | **23.80 GB** | **3.20 GB**, after a full `cargo xtask ci`, the whole suite, a release build and a soak run |
+| `target/` in all | **23.80 GB** | **3.07 GB**, after a full `cargo xtask ci`, the whole suite, a release build and a soak run. The budget is 10 GB |
 | The temporary trees of a local mutation run | 14.7 GB for eight jobs | none: it runs in CI |
 
 Three changes, each with its reason written where it is made:
