@@ -19,7 +19,7 @@ use std::path::{Path, PathBuf};
 ///
 /// The workflow needles are whole `run:` lines, because a looser needle matches the step
 /// that installs a tool rather than the step that runs it.
-const CHECKS: [(&str, &str, &str); 11] = [
+const CHECKS: [(&str, &str, &str); 12] = [
     (
         "formatting",
         "run: cargo fmt --all -- --check",
@@ -59,6 +59,7 @@ const CHECKS: [(&str, &str, &str); 11] = [
         r#""documentation runs""#,
     ),
     ("no local paths", "-- leak-check", r#""no local paths""#),
+    ("coverage", "-- coverage --report", r#""coverage""#),
 ];
 
 /// The checks that run in one job, in one order, so their order can be compared.

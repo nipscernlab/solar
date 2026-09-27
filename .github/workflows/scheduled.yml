@@ -86,3 +86,31 @@ jobs:
             fuzz/artifacts/
             fuzz/corpus/
           if-no-files-found: ignore
+
+  mutants:
+    name: mutation testing
+    runs-on: ubuntu-latest
+    # The full run mutates every line of the two library crates and runs the suite for
+    # each one, which is long. Weekly is the right cadence; `cargo xtask mutants
+    # --in-diff` is the one to run before opening a pull request.
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Install the pinned toolchain
+        run: rustup show active-toolchain
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2 (v2.8.1)
+      - name: Install the mutation tool and the test runner
+        uses: taiki-e/install-action@4cef1412cce204788f482e778a0b9187f9626a29 # v2.87.21
+        with:
+          tool: cargo-mutants,cargo-nextest
+
+      - name: Mutate the shipped crates
+        run: cargo run --package xtask --locked --quiet -- mutants
+
+      - name: Keep the report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: mutants
+          path: target/mutants/
+          if-no-files-found: warn

@@ -111,8 +111,11 @@ pub fn truncate(text: &str, max_bytes: usize) -> (String, bool) {
     if text.len() <= max_bytes {
         return (text.to_owned(), false);
     }
+    // `is_char_boundary(0)` is always true, so this walks back to at worst zero and
+    // stops. A guard on `end > 0` would be redundant, and nothing could ever prove it
+    // was doing anything.
     let mut end = max_bytes;
-    while end > 0 && !text.is_char_boundary(end) {
+    while !text.is_char_boundary(end) {
         end -= 1;
     }
     (text.get(..end).unwrap_or_default().to_owned(), true)
@@ -173,6 +176,85 @@ mod tests {
     }
 
     #[test]
+    fn deleting_and_inserting_cost_the_same_one_each() {
+        // The three terms of the recurrence are substitution, insertion and deletion, and
+        // a case that needs deletions is the only thing that proves the third is there:
+        // without it these come out one too large.
+        assert_eq!(levenshtein("ab", "a"), 1, "one deletion");
+        assert_eq!(levenshtein("a", "ab"), 1, "one insertion");
+        assert_eq!(
+            levenshtein("abcde", "ae"),
+            3,
+            "three deletions in the middle"
+        );
+        assert_eq!(
+            levenshtein("ae", "abcde"),
+            3,
+            "and the same the other way round"
+        );
+        assert_eq!(levenshtein("deletion", "dton"), 4);
+    }
+
+    #[test]
+    fn a_substitution_costs_one_and_a_match_costs_nothing() {
+        // The mutation that replaces + with * in the substitution cost survives unless a
+        // case distinguishes them: with * a match would cost zero and a substitution
+        // would cost zero too, collapsing every distance that is all substitutions.
+        assert_eq!(levenshtein("abc", "abd"), 1, "one substitution at the end");
+        assert_eq!(
+            levenshtein("abc", "xyz"),
+            3,
+            "three substitutions, no insertions"
+        );
+        assert_eq!(levenshtein("aaa", "aaa"), 0);
+        assert_eq!(
+            levenshtein("ab", "ba"),
+            2,
+            "a swap is two substitutions here"
+        );
+    }
+
+    #[test]
+    fn a_candidate_is_offered_only_when_both_conditions_hold() {
+        // Two conditions, so two cases where exactly one of them fails. Either of them
+        // alone, or an || in place of the &&, would offer one of these.
+        let far_but_long = suggestions("abcdefgh", ["abcdwxyz"]);
+        assert!(
+            far_but_long.is_empty(),
+            "distance 4 is past the limit, however long the name"
+        );
+
+        // Distance 2 on a candidate of length 2: within the limit, and not shorter than
+        // the candidate, so it is refused by the second condition alone.
+        let close_but_short = suggestions("xy", ["ab"]);
+        assert!(
+            close_but_short.is_empty(),
+            "a name cannot be a suggestion for something wholly unlike it"
+        );
+
+        // Distance 2 on a candidate of length 3 passes both, and must be offered.
+        assert_eq!(
+            suggestions("xyz", ["xab"]).first().map(|(name, _)| *name),
+            Some("xab")
+        );
+    }
+
+    #[test]
+    fn the_distance_limit_is_inclusive_and_the_length_limit_is_not() {
+        // Exactly at MAX_SUGGESTION_DISTANCE: offered, so <= is not <.
+        let at_the_limit = suggestions("abcdef", ["abcxyz"]);
+        assert_eq!(
+            at_the_limit.len(),
+            1,
+            "a distance of exactly three is still a suggestion"
+        );
+
+        // Distance equal to the length of the candidate: refused, so < is not <=.
+        let as_far_as_it_is_long = suggestions("abc", ["xyz"]);
+        assert!(as_far_as_it_is_long.is_empty(), "every character differs");
+    }
+
+    #[test]
     fn the_edit_distance_counts_characters_not_bytes() {
         assert_eq!(levenshtein("é", "e"), 1);
         assert_eq!(levenshtein("café", "cafe"), 1);
@@ -219,7 +301,10 @@ mod tests {
     #[test]
     fn truncation_keeps_whole_characters() {
         assert_eq!(truncate("hello", 10), ("hello".to_owned(), false));
+        // Exactly at the limit is kept whole: the comparison is <=, not <.
         assert_eq!(truncate("hello", 5), ("hello".to_owned(), false));
+        // One byte under, and it is cut: the comparison is not >=.
+        assert_eq!(truncate("hello", 4), ("hell".to_owned(), true));
         assert_eq!(truncate("hello", 3), ("hel".to_owned(), true));
         // "é" is two bytes, so a limit of three bytes keeps only the first character.
         assert_eq!(truncate("éé", 3), ("é".to_owned(), true));

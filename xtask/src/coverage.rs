@@ -1,0 +1,104 @@
+//! `cargo xtask coverage`: how much of the shipped code the tests really run.
+//!
+//! Coverage is not a score to admire. It is a list of the lines nobody has ever executed,
+//! and the value of the number is that it cannot fall: [`FLOOR`] is what was measured
+//! when this was written, rounded down, and CI refuses a change that goes below it.
+//!
+//! What is measured is the three crates that ship: `solar-core`, `solar-apis` and
+//! `solar-cli`. `xtask` is left out on purpose and [`why_xtask_is_excluded`] says why.
+//!
+//! Coverage says which lines ran. It does not say whether anything checked what they did,
+//! which is what `cargo xtask mutants` is for.
+
+use std::path::Path;
+use std::process::Command;
+
+/// The floor, in percent of lines, measured on 27 September 2026 and rounded down.
+///
+/// It only ever goes up. Raising it is a separate change, made when a measurement has
+/// stayed comfortably above the current floor for a while.
+pub(crate) const FLOOR: u32 = 91;
+
+/// The crates that ship, and therefore the crates that are measured.
+const MEASURED: [&str; 3] = ["solar-core", "solar-apis", "solar-cli"];
+
+/// Why the developer tool is not part of the number.
+pub(crate) const fn why_xtask_is_excluded() -> &'static str {
+    "xtask is run by the pipeline rather than by the tests: `ci`, `doc-run` and \
+     `leak-check` are the pipeline. Measuring it would count the harness as if it were \
+     the product, and would push the floor down every time a task is added."
+}
+
+/// Runs the tests under instrumentation and reports the coverage.
+///
+/// # Errors
+///
+/// Returns why the run failed, or that the coverage fell below [`FLOOR`].
+pub(crate) fn run(root: &Path, write_reports: bool) -> Result<(), String> {
+    let target = crate::flags::target_dir(root).join("ci");
+    let reports = root.join("target").join("coverage");
+    if write_reports {
+        std::fs::create_dir_all(&reports)
+            .map_err(|failure| format!("{} could not be created: {failure}", reports.display()))?;
+    }
+
+    let mut arguments: Vec<String> = vec![
+        "llvm-cov".to_owned(),
+        "nextest".to_owned(),
+        "--locked".to_owned(),
+        "--ignore-filename-regex".to_owned(),
+        "xtask".to_owned(),
+        "--fail-under-lines".to_owned(),
+        FLOOR.to_string(),
+    ];
+    for crate_name in MEASURED {
+        arguments.push("--package".to_owned());
+        arguments.push(crate_name.to_owned());
+    }
+    if write_reports {
+        arguments.push("--lcov".to_owned());
+        arguments.push("--output-path".to_owned());
+        arguments.push(reports.join("lcov.info").display().to_string());
+    } else {
+        arguments.push("--summary-only".to_owned());
+    }
+
+    let status = Command::new("cargo")
+        .args(&arguments)
+        .current_dir(root)
+        .env("CARGO_TARGET_DIR", &target)
+        .status()
+        .map_err(|failure| {
+            format!(
+                "cargo llvm-cov could not be started: {failure}. Install it \
+                                    with `cargo install cargo-llvm-cov --locked`."
+            )
+        })?;
+
+    if !status.success() {
+        return Err(format!(
+            "the coverage of the shipped crates is below the floor of {FLOOR}% of lines. \
+             Either the change needs tests, or the floor is wrong and lowering it is a \
+             decision, not a fix."
+        ));
+    }
+
+    if write_reports {
+        // The same run again for the report a person reads. `--no-run` reuses the
+        // profile data just gathered, so nothing is executed twice.
+        let html = Command::new("cargo")
+            .args(["llvm-cov", "report", "--html", "--output-dir"])
+            .arg(reports.join("html"))
+            .args(["--ignore-filename-regex", "xtask"])
+            .current_dir(root)
+            .env("CARGO_TARGET_DIR", &target)
+            .status()
+            .map_err(|failure| format!("the HTML report could not be written: {failure}"))?;
+        if !html.success() {
+            return Err("the HTML report could not be written".to_owned());
+        }
+        println!("coverage: reports in {}", reports.display());
+    }
+
+    Ok(())
+}

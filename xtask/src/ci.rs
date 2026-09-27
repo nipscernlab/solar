@@ -90,6 +90,8 @@ pub(crate) fn run(root: &Path) -> Result<(), String> {
         step("no local paths", || {
             crate::leak_check::run(root, &nested_target(root))
         }),
+        // Last, because it runs the whole suite again under instrumentation.
+        step("coverage", || crate::coverage::run(root, false)),
     ];
 
     report(&outcomes)

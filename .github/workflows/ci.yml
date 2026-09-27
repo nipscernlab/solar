@@ -118,6 +118,32 @@ jobs:
       - name: The release binary embeds no local path
         run: cargo run --package xtask --locked --quiet -- leak-check
 
+  coverage:
+    name: coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Install the pinned toolchain
+        run: rustup show active-toolchain
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2 (v2.8.1)
+      - name: Install the coverage tool and the test runner
+        uses: taiki-e/install-action@4cef1412cce204788f482e778a0b9187f9626a29 # v2.87.21
+        with:
+          tool: cargo-llvm-cov,cargo-nextest
+
+      # The floor lives in xtask/src/coverage.rs, with the date it was measured. It only
+      # ever goes up.
+      - name: Coverage of the shipped crates
+        run: cargo run --package xtask --locked --quiet -- coverage --report
+
+      - name: Keep the reports
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: coverage
+          path: target/coverage/
+          if-no-files-found: warn
+
   docs:
     name: documentation
     runs-on: ubuntu-latest

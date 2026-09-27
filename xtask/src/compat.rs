@@ -170,17 +170,17 @@ fn compare_schema(
 
     for member in new_members.keys() {
         if !old_members.contains_key(member) {
-            let now_required = new_required.contains(member);
+            let must_be_sent = new_required.contains(member);
             changes.push(Change {
                 api: api.to_owned(),
-                what: if now_required {
+                what: if must_be_sent {
                     format!("a new required {which} member, {member}")
                 } else {
                     format!("a new optional {which} member, {member}")
                 },
                 // A new required parameter breaks every existing caller; a new output
                 // member breaks nobody, required or not.
-                breaking: now_required && which == "params",
+                breaking: must_be_sent && which == "params",
             });
         }
     }

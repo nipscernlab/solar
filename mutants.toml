@@ -1,0 +1,25 @@
+# Mutation testing: coverage says which lines ran, this says whether anything checked
+# what they did. `cargo xtask mutants` runs it; a weekly job runs it in full.
+#
+# Only the crates that ship are mutated. xtask is the harness, and a surviving mutant in
+# a developer tool is not the same kind of news as one in the protocol.
+
+examine_globs = ["crates/solar-core/src/**/*.rs", "crates/solar-apis/src/**/*.rs"]
+
+exclude_globs = [
+  # The template strings of the generator are data, not logic.
+  "xtask/**",
+]
+
+exclude_re = [
+  # A Display impl that prints a different string is a mutant nothing should fail for;
+  # what matters about these is checked by the snapshots, not by their bodies.
+  "impl Display for .*::fmt",
+]
+
+# nextest, so a mutant that hangs is killed by the same timeout the suite uses.
+test_tool = "nextest"
+
+# A mutant that makes a test hang is a caught mutant, not a wait of several minutes.
+timeout_multiplier = 3.0
+minimum_test_timeout = 30

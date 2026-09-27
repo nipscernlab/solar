@@ -20,9 +20,11 @@ use std::process::ExitCode;
 
 mod ci;
 mod compat;
+mod coverage;
 mod doc_run;
 mod flags;
 mod leak_check;
+mod mutants;
 mod new_api;
 
 /// The exit code of a task that failed.
@@ -36,6 +38,8 @@ fn main() -> ExitCode {
     let outcome = match task {
         "manifest" => manifest(rest.contains(&"--check")),
         "ci" => ci::run(&root()),
+        "coverage" => coverage::run(&root(), rest.contains(&"--report")),
+        "mutants" => mutants::run(&root(), &rest),
         "compat" => match rest.first() {
             Some(base) if !base.starts_with('-') => compat::run(&root(), base),
             // `main` is what a pull request is compared against by default.
@@ -78,6 +82,10 @@ cargo xtask <task>
   ci                  everything CI runs, in the same order, with a summary
   compat [<base>]     what changed in the manifest against <base>, default main, and
                       whether the version of each API answers for it
+  coverage [--report] how much of the shipped code the tests run, against the floor;
+                      --report also writes lcov and HTML into target/coverage
+  mutants [args...]   change the code and see whether a test fails; --in-diff origin/main
+                      narrows it to what this branch touched
   doc-run             run every shell-tagged block of the documentation in its shell
   leak-check          prove the release binary embeds no local path
   new-api <name>      write a new API from the template and register it
