@@ -38,6 +38,26 @@ jobs:
 
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2 (v2.8.1)
 
+      # The same remap flags xtask computes, exported once so that every step of this job
+      # builds identically and nothing is compiled twice over a flag change. The strings
+      # must match xtask/src/flags.rs to the byte.
+      - name: Compute the remap flags (unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          flags="--remap-path-prefix=$HOME=/users/anon --remap-path-prefix=$PWD=/solar"
+          if [ "$(uname)" = "Darwin" ]; then
+            flags="$flags -Clink-arg=-Wl,-oso_prefix,$HOME/"
+          fi
+          echo "RUSTFLAGS=$flags" >> "$GITHUB_ENV"
+
+      - name: Compute the remap flags (windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $flags = "--remap-path-prefix=$env:USERPROFILE=/users/anon --remap-path-prefix=$env:GITHUB_WORKSPACE=/solar"
+          Add-Content -Path $env:GITHUB_ENV -Value "RUSTFLAGS=$flags"
+
       - name: Report the toolchain
         run: |
           rustc --version

@@ -35,5 +35,14 @@ pub(crate) fn remap_rustflags(root: &Path) -> String {
         "--remap-path-prefix={}={ROOT_STANDIN}",
         root.display()
     ));
+    if cfg!(target_os = "macos")
+        && let Some(home) = home_directory()
+    {
+        // Mach-O keeps its debug information as OSO entries naming the object files the
+        // linker read, absolute paths that rustc's remap never sees. ld64's `-oso_prefix`
+        // strips one prefix from them, and the home directory covers both the target
+        // directory and the registry cache.
+        flags.push(format!("-Clink-arg=-Wl,-oso_prefix,{home}/"));
+    }
     flags.join(" ")
 }
