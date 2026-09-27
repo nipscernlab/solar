@@ -1,0 +1,48 @@
+name: scheduled
+
+# The early warnings: what breaks on a compiler this repository has not pinned yet, and
+# whether the declared minimum still builds. Neither belongs in the loop of every push.
+
+on:
+  schedule:
+    # Mondays at 06:00 UTC, before the working day in Brazil and in Geneva.
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  latest-stable:
+    name: latest stable rust
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Install the latest stable, ignoring the pin
+        run: |
+          rustup toolchain install stable --component rustfmt,clippy
+          echo "RUSTUP_TOOLCHAIN=stable" >> "$GITHUB_ENV"
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2 (v2.8.1)
+      - name: Report the toolchain
+        run: rustc --version
+      - name: Lints on the next compiler
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: Tests on the next compiler
+        run: cargo test --workspace --locked
+
+  minimum-supported:
+    name: minimum supported rust
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Install the rust-version of Cargo.toml
+        run: |
+          minimum="$(grep -m1 '^rust-version' Cargo.toml | sed 's/.*"\(.*\)".*/\1/')"
+          echo "the declared minimum is ${minimum}"
+          rustup toolchain install "${minimum}"
+          echo "RUSTUP_TOOLCHAIN=${minimum}" >> "$GITHUB_ENV"
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2 (v2.8.1)
+      - name: Report the toolchain
+        run: rustc --version
+      - name: The minimum builds and tests
+        run: cargo test --workspace --locked

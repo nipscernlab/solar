@@ -1,0 +1,11 @@
+# The toolchain of this repository, the same on a laptop and in CI.
+#
+# rustup reads this file and installs what it names, so `cargo build` on a fresh clone
+# uses exactly the compiler the code was written against. A scheduled CI job builds on
+# the latest stable as an early warning, and another proves the minimum in `rust-version`.
+#
+# llvm-tools is here for cargo-llvm-cov, which measures coverage.
+
+[toolchain]
+channel = "1.97.1"
+components = ["rustfmt", "clippy", "llvm-tools"]

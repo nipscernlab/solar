@@ -135,6 +135,9 @@ fn build_the_binary(root: &Path) -> Result<(), String> {
             "--quiet",
         ])
         .current_dir(root)
+        // The same flags as every other xtask build, so alternating xtask commands never
+        // rebuild the world over a flag change.
+        .env("RUSTFLAGS", crate::flags::remap_rustflags(root))
         .status()
         .map_err(|failure| format!("cargo could not be started: {failure}"))?;
     if status.success() {

@@ -16,6 +16,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   check:
     name: ${{ matrix.os }}
@@ -26,14 +29,14 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
-      - name: Install the stable toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
+      # rustup reads rust-toolchain.toml, so the toolchain here is byte for byte the one
+      # a laptop uses. No third-party action decides the compiler.
+      - name: Install the pinned toolchain
+        run: rustup show active-toolchain
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2 (v2.8.1)
 
       - name: Report the toolchain
         run: |
@@ -44,16 +47,16 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Lints
-        run: cargo clippy --workspace --all-targets -- -D warnings
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
       - name: Tests
-        run: cargo test --workspace
+        run: cargo test --workspace --locked
 
       - name: The manifest is not stale
-        run: cargo run --package xtask --quiet -- manifest --check
+        run: cargo run --package xtask --locked --quiet -- manifest --check
 
       - name: Release build
-        run: cargo build --workspace --release
+        run: cargo build --workspace --release --locked
 
       - name: The release binary answers
         shell: bash
@@ -67,14 +70,19 @@ jobs:
       - name: The documentation runs
         run: cargo run --package xtask --locked --quiet -- doc-run
 
+      # The binary that would be shipped from this commit names no user and no machine.
+      - name: The release binary embeds no local path
+        run: cargo run --package xtask --locked --quiet -- leak-check
+
   docs:
     name: documentation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Install the pinned toolchain
+        run: rustup show active-toolchain
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2 (v2.8.1)
       - name: Build the API documentation
         env:
           RUSTDOCFLAGS: -D warnings
-        run: cargo doc --workspace --no-deps
+        run: cargo doc --workspace --no-deps --locked

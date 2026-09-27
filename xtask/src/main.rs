@@ -16,6 +16,8 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 mod doc_run;
+mod flags;
+mod leak_check;
 mod new_api;
 
 /// The exit code of a task that failed.
@@ -29,6 +31,7 @@ fn main() -> ExitCode {
     let outcome = match task {
         "manifest" => manifest(rest.contains(&"--check")),
         "doc-run" => doc_run::run(&root()),
+        "leak-check" => leak_check::run(&root()),
         "new-api" => match rest.first() {
             Some(name) if !name.starts_with('-') => new_api::run(&root(), name),
             _ => Err(
@@ -62,6 +65,7 @@ cargo xtask <task>
   manifest            regenerate manifest/solar.manifest.json from the registry
   manifest --check    report whether the versioned manifest is stale, write nothing
   doc-run             run every shell-tagged block of the documentation in its shell
+  leak-check          prove the release binary embeds no local path
   new-api <name>      write a new API from the template and register it
   help                this text"
     );

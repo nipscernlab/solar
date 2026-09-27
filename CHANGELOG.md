@@ -30,6 +30,18 @@ protocol is stated here in its own line.
 - `cargo xtask manifest` and `cargo xtask new-api <name>`.
 - `docs/CONTRACT.md`, `docs/ERRORS.md`, `docs/ADDING_AN_API.md` and
   `docs/OPEN_QUESTIONS.md`.
-- Continuous integration on Linux, Windows and macOS.
+- Continuous integration on Linux, Windows and macOS, with the toolchain pinned by
+  `rust-toolchain.toml`, every cargo command `--locked`, a weekly early-warning job on the
+  latest stable and a weekly proof of the declared minimum.
+- The documentation runs: every `bash`, `powershell` and `cmd` block of the Markdown is
+  executed by `cargo xtask doc-run` in that shell, in CI, on every push.
+- `cargo xtask leak-check`: the release binary is scanned byte by byte and embeds no home
+  directory, no user name and no repository root. Release builds carry
+  `debug = "line-tables-only"`, so a crash report names the file and the line.
+- `solar call` logs at `SOLAR_LOG` levels exactly as a session does; it used to stay
+  silent.
+- The hints of `solar list` and `solar describe` are pastable in the shell they name:
+  `bash`, Windows PowerShell and `cmd.exe` disagree about quotes, so an example with
+  parameters is printed once per shell.
 
 [Unreleased]: https://github.com/nipscernlab/solar/commits/main

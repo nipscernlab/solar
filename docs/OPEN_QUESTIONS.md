@@ -301,3 +301,30 @@ documentation with `-D warnings`.
 [36287385822](https://github.com/nipscernlab/solar/actions/runs/36287385822), with Windows
 the slowest at 6m24s. The work was done on Windows, so Linux and macOS were unverified
 until that run.
+
+## Stage 2
+
+### Local paths are stripped with computed remap flags, not committed ones
+
+`trim-paths`, the profile key that will one day do this, still needs `-Z` on the pinned
+1.97, which was verified against the toolchain rather than assumed. The fallback is
+`--remap-path-prefix`, and the two prefixes that leak, the home directory and the
+repository root, differ per machine, so they cannot live in a committed configuration
+file. They are computed in `xtask/src/flags.rs` and applied to every build xtask makes,
+and CI exports the same flags for the builds it makes directly.
+
+**The consequence recorded plainly:** a bare `cargo build --release` outside xtask, on a
+developer's machine, still embeds that machine's paths. What is enforced is the artifact
+that matters: `cargo xtask leak-check` builds the release binary with the flags and then
+scans every byte of it for the home directory, the user name as a path segment, and the
+repository root, in both slash spellings. CI runs it on the three systems. When
+`trim-paths` stabilises, the flags move into the release profile and this entry closes.
+
+### The documentation runner executes blocks, and no-run is the audited exception
+
+Every fenced block tagged `bash`, `powershell` or `cmd` is executed by `cargo xtask
+doc-run` in that shell. A block tagged `no-run` is skipped, its first line says why, and
+today there are five: two that would mutate the working tree (`cargo xtask new-api`), and
+three lists of commands that already run as their own CI steps, where executing them again
+would only double the pipeline. `powershell` means Windows PowerShell 5.1, the shell whose
+quoting the README documents, so those blocks run on the Windows job.

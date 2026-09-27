@@ -55,3 +55,5 @@ codegen-units = 1
 panic = "unwind"
 opt-level = 3
 incremental = false
+# File and line survive into a crash report; full debug info would triple the binary.
+debug = "line-tables-only"
