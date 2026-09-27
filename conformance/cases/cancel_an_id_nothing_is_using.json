@@ -1,0 +1,15 @@
+{
+  "name": "cancel_an_id_nothing_is_using",
+  "description": "Cancelling an id no call carries is an answer, not an error",
+  "request": {"jsonrpc": "2.0", "id": 1, "method": "solar.cancel", "params": {"id": 4321}},
+  "response": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": {
+      "data": {"id": 4321, "outcome": "unknown"},
+      "meta": "$any",
+      "warnings": []
+    }
+  },
+  "match": "subset"
+}

@@ -38,6 +38,10 @@ runner, in `crates/solar-apis/tests/conformance.rs`; the files are the truth.
 A case whose `request` is not valid JSON is written as `request_line`, a string, so that
 the suite can cover what happens to a malformed line.
 
+A `request` that is a JSON **array** is a batch, and its `response` is then an array too,
+compared element by element, in order. A batch that is refused as a whole answers with a
+single object, so those cases have an object for a `response` like any other.
+
 ## Running them
 
 Against a built binary, in one session:
@@ -56,7 +60,7 @@ cargo nextest run -p solar-apis --test conformance
 
 ## It really is language-neutral
 
-That claim was checked rather than asserted: the eleven cases were replayed from Python,
+That claim was checked rather than asserted: the cases were replayed from Python,
 with a fifteen line matcher and no Rust involved, against the release binary. Eleven
 sent, eleven answered, nothing failed. A client in TypeScript needs the same fifteen
 lines: send `request` or `request_line`, read one line back, and compare by the rule in

@@ -1,9 +1,10 @@
-//! The JSON-RPC 2.0 envelope, with the two deviations SOLAR makes on purpose.
+//! The JSON-RPC 2.0 envelope, with the one deviation SOLAR makes on purpose.
 //!
 //! Parsing is written by hand against [`serde_json::Value`] rather than derived, because
 //! the point of this layer is the quality of the error it produces when the envelope is
 //! wrong, and a derived `Deserialize` cannot say what a caller needs to hear.
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
@@ -24,7 +25,7 @@ pub const MAX_RECEIVED_BYTES: usize = 200;
 ///
 /// JSON-RPC 2.0 also allows `null`, which it treats as a notification. SOLAR does not
 /// accept notifications, so `null` is refused at the door and this type cannot hold it.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(untagged)]
 pub enum RequestId {
     /// A numeric identifier, the usual choice of a programmatic caller.

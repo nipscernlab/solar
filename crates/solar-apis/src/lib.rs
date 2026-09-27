@@ -26,6 +26,7 @@ use solar_core::dispatch::Dispatcher;
 use solar_core::registry::{Registry, RegistryBuilder, RegistryProblem};
 
 pub mod os_release;
+pub mod solar_cancel;
 pub mod solar_describe;
 pub mod solar_manifest;
 pub mod solar_ping;
@@ -43,6 +44,7 @@ pub mod system_info;
 /// fail on the same list, so this reaching a caller means the tests were not run.
 pub fn build_registry() -> Result<Registry, Vec<RegistryProblem>> {
     RegistryBuilder::new()
+        .register::<solar_cancel::SolarCancel>()
         .register::<solar_describe::SolarDescribe>()
         .register::<solar_manifest::SolarManifest>()
         .register::<solar_ping::SolarPing>()

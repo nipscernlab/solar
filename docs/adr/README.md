@@ -27,3 +27,4 @@ the reasoning that was once persuasive is part of the history.
 | [0008](0008-abandon-a-handler-that-overruns.md) | A handler that overruns is abandoned, not killed | Accepted |
 | [0009](0009-one-reusable-worker-thread.md) | One reusable worker thread per dispatching thread | Accepted |
 | [0010](0010-batches-answer-in-order.md) | Batches are answered in the order they were sent | Accepted |
+| [0011](0011-cancelling-is-an-ordinary-call.md) | Cancelling is an ordinary call, and every request still gets exactly one response | Accepted |

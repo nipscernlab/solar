@@ -88,6 +88,9 @@ pub(crate) fn run(root: &Path, fast: bool) -> Result<(), String> {
         // What CI compares on a pull request; locally, against main, which is what a
         // pull request from this branch would be compared with.
         step("compatibility", || crate::compat::run(root, "main")),
+        // Code and documentation move together, and this is the part of that rule a
+        // machine can check. Against main, as a pull request from this branch would be.
+        step("changelog", || crate::changelog::run(root, "main")),
     ];
 
     if !fast {

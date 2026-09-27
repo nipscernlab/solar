@@ -510,7 +510,7 @@ impl Registry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::api::{ApiSpec, Example};
+    use crate::api::{ApiSpec, DEFAULT_MAX_OUTPUT_BYTES, Example};
     use schemars::JsonSchema;
     use serde::{Deserialize, Serialize};
     use serde_json::json;
@@ -540,6 +540,7 @@ mod tests {
             stability: Stability::Experimental,
             since: "0.1.0",
             timeout_ms: 1_000,
+            max_output_bytes: DEFAULT_MAX_OUTPUT_BYTES,
             examples: vec![Example::exact(
                 "plain",
                 "Echoes hi",
@@ -592,6 +593,7 @@ mod tests {
                 stability: Stability::Stable,
                 since: "zero",
                 timeout_ms: 0,
+                max_output_bytes: DEFAULT_MAX_OUTPUT_BYTES,
                 examples: Vec::new(),
             }
         }

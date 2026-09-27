@@ -306,12 +306,19 @@ fn a_session_can_be_recorded_and_played_back() {
     assert_eq!(served.status.code(), Some(0));
     assert_eq!(stdout_of(&served).lines().count(), 2);
 
-    // Two requests and two responses, in the order they crossed.
+    // Two requests and two responses. A session reads on a thread of its own, so the
+    // recording is a chronological log rather than strict alternation: what is promised
+    // is that every line that crossed is in it, with the time it crossed.
     let written = std::fs::read_to_string(&recording).expect("the recording exists");
     let entries: Vec<Value> = written.lines().map(parse).collect();
     assert_eq!(entries.len(), 4);
-    assert_eq!(entries[0]["direction"], "in");
-    assert_eq!(entries[1]["direction"], "out");
+    let directions: Vec<&str> = entries
+        .iter()
+        .map(|entry| entry["direction"].as_str().unwrap())
+        .collect();
+    assert_eq!(directions.iter().filter(|d| **d == "in").count(), 2);
+    assert_eq!(directions.iter().filter(|d| **d == "out").count(), 2);
+    assert_eq!(directions[0], "in", "a session records what arrives first");
     assert!(entries[0]["at"].as_str().unwrap().ends_with('Z'));
 
     // Played back against the same build, nothing differs.

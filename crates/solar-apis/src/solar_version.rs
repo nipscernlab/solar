@@ -3,7 +3,9 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use solar_core::api::{ANY, Api, ApiSpec, Example, SideEffect, Stability};
+use solar_core::api::{
+    ANY, Api, ApiSpec, DEFAULT_MAX_OUTPUT_BYTES, Example, SideEffect, Stability,
+};
 use solar_core::build_info::{BuildInfo, build_info};
 use solar_core::context::Context;
 use solar_core::error::SolarError;
@@ -59,6 +61,7 @@ Quote all of it in a bug report.",
             stability: Stability::Experimental,
             since: "0.1.0",
             timeout_ms: 1_000,
+            max_output_bytes: DEFAULT_MAX_OUTPUT_BYTES,
             examples: vec![Example::subset(
                 "plain",
                 "Everything this build is",

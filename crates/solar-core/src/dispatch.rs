@@ -7,6 +7,7 @@
 use std::any::Any;
 use std::cell::Cell;
 use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::mpsc::{Receiver, RecvTimeoutError, SyncSender, sync_channel};
 use std::sync::{Arc, Once};
 use std::thread;
@@ -14,6 +15,7 @@ use std::time::{Duration, Instant};
 
 use serde_json::Value;
 
+use crate::cancel::Cancellation;
 use crate::clock;
 use crate::context::Context;
 use crate::error::{ErrorDetail, SolarError};
@@ -22,6 +24,7 @@ use crate::meta::Meta;
 use crate::protocol::{Incoming, Request, RequestError, Response, parse_request, read_line};
 use crate::reason::Reason;
 use crate::registry::{Registry, RegistryProblem};
+use crate::session::SessionState;
 use crate::status::Status;
 
 thread_local! {
@@ -32,6 +35,26 @@ thread_local! {
 }
 
 static HOOK: Once = Once::new();
+
+/// How many abandoned handlers may be alive at once, section 10 of the contract.
+///
+/// A handler that overruns is abandoned rather than killed, and keeps its stack until it
+/// finishes on its own. Without a cap, an API that overruns on every call would consume
+/// the process one thread at a time.
+pub const MAX_ABANDONED_WORKERS: usize = 64;
+
+/// How many abandoned handlers are alive now, across every dispatching thread.
+static ALIVE_ABANDONED: AtomicUsize = AtomicUsize::new(0);
+
+/// How many abandoned handlers are still running, which `system.info` reports.
+///
+/// A handler that overran its budget is abandoned, not killed: it keeps running until it
+/// finishes on its own, and this counts the ones that have not finished yet. A healthy
+/// process reports zero.
+#[must_use]
+pub fn abandoned_workers() -> usize {
+    ALIVE_ABANDONED.load(Ordering::SeqCst)
+}
 
 /// Installs the panic hook that lets dispatch report where a handler panicked.
 ///
@@ -107,6 +130,19 @@ enum State {
     Ready(Arc<Registry>),
     /// A registry that did not, kept so that every call can say why.
     Broken(Vec<RegistryProblem>),
+}
+
+/// What a call knows about the session it is running in, when it is running in one.
+///
+/// A call outside a session, which is what `solar call` makes, carries a token nobody
+/// holds the other end of and no session to cancel through: it can neither be cancelled
+/// nor answer `solar.cancel` with anything but `unknown`, which is the truth.
+#[derive(Debug, Clone, Default)]
+pub struct InSession {
+    /// The token this call watches.
+    pub cancellation: Cancellation,
+    /// The session this call can see, for `solar.cancel`.
+    pub session: Option<Arc<SessionState>>,
 }
 
 /// One line of output, and how many requests it answers.
@@ -255,7 +291,66 @@ impl Dispatcher {
         self.run(request, started_at, Instant::now())
     }
 
+    /// The same, for a call running inside a session, which can be cancelled.
+    #[must_use]
+    pub fn dispatch_in_session(
+        &self,
+        request: Request,
+        started_at: String,
+        start: Instant,
+        in_session: &InSession,
+    ) -> Response {
+        self.run_in_session(request, started_at, start, in_session)
+    }
+
+    /// The same, for a whole message: one request, a batch, or a line that never parsed.
+    ///
+    /// This is what a session calls for each message it takes off its queue, and what
+    /// makes a batch answer with one array while a single request answers with one object.
+    #[must_use]
+    pub fn answer_work(
+        &self,
+        work: crate::session::Work,
+        started_at: &str,
+        start: Instant,
+        in_session: &InSession,
+    ) -> String {
+        match work {
+            crate::session::Work::One(request) => self
+                .run_in_session(request, started_at.to_owned(), start, in_session)
+                .to_line(),
+            crate::session::Work::Failed(failed) => {
+                Self::refuse(*failed, started_at.to_owned(), start).to_line()
+            }
+            crate::session::Work::Batch(elements) => {
+                let answers: Vec<Value> = elements
+                    .into_iter()
+                    .map(|element| {
+                        let at = clock::now_rfc3339_micros();
+                        let began = Instant::now();
+                        let response = match element {
+                            Ok(request) => self.run_in_session(request, at, began, in_session),
+                            Err(failed) => Self::refuse(*failed, at, began),
+                        };
+                        serde_json::to_value(&response).unwrap_or(Value::Null)
+                    })
+                    .collect();
+                serde_json::to_string(&answers).unwrap_or_else(|_| "[]".to_owned())
+            }
+        }
+    }
+
     fn run(&self, request: Request, started_at: String, start: Instant) -> Response {
+        self.run_in_session(request, started_at, start, &InSession::default())
+    }
+
+    fn run_in_session(
+        &self,
+        request: Request,
+        started_at: String,
+        start: Instant,
+        in_session: &InSession,
+    ) -> Response {
         let Request { id, method, params } = request;
         let registry = match &self.state {
             State::Ready(registry) => registry,
@@ -300,12 +395,18 @@ impl Dispatcher {
         };
 
         let budget = Duration::from_millis(entry.spec().timeout_ms);
-        let ctx = Arc::new(Context::new(
+        let limit = entry.spec().max_output_bytes;
+        let mut context = Context::new(
             Some(id.clone()),
             method.clone(),
             budget,
             Arc::clone(registry),
-        ));
+        )
+        .cancellable(in_session.cancellation.clone());
+        if let Some(session) = in_session.session.as_ref() {
+            context = context.in_session(Arc::clone(session));
+        }
+        let ctx = Arc::new(context);
 
         let outcome = run_with_budget(&ctx, entry.name(), typed, budget);
         let duration_us = elapsed_us(start);
@@ -319,10 +420,72 @@ impl Dispatcher {
         );
 
         match outcome {
-            Ok(data) => Response::success(Some(id), data, meta, warnings),
+            Ok(data) => match output_within(&data, limit) {
+                Ok(()) => Response::success(Some(id), data, meta, warnings),
+                Err(size) => {
+                    Response::failure(Some(id), output_too_large_error(&method, size, limit), meta)
+                }
+            },
             Err(error) => Response::failure(Some(id), error, meta),
         }
     }
+}
+
+/// Whether a response fits in the size its API declares, and how far past it went if not.
+///
+/// The value is serialised into a counter rather than into a string, and the counter stops
+/// the serialisation as soon as the limit is passed, so refusing a response that is far too
+/// large costs nothing near its size.
+///
+/// # Errors
+///
+/// The number of bytes written before the limit was passed, which is the limit plus the
+/// chunk that crossed it: a response already refused does not deserve a full measurement.
+fn output_within(data: &Value, limit: u64) -> Result<(), u64> {
+    struct Counter {
+        written: u64,
+        limit: u64,
+    }
+
+    impl std::io::Write for Counter {
+        fn write(&mut self, buffer: &[u8]) -> std::io::Result<usize> {
+            self.written = self
+                .written
+                .saturating_add(u64::try_from(buffer.len()).unwrap_or(u64::MAX));
+            if self.written > self.limit {
+                return Err(std::io::Error::other("past the declared output size"));
+            }
+            Ok(buffer.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    let mut counter = Counter { written: 0, limit };
+    match serde_json::to_writer(&mut counter, data) {
+        Ok(()) => Ok(()),
+        // Serialising a `Value` fails only on the counter, which fails only on the limit.
+        Err(_) => Err(counter.written),
+    }
+}
+
+/// The error an API that produced too much is refused with.
+fn output_too_large_error(method: &str, size: u64, limit: u64) -> SolarError {
+    SolarError::new(
+        Reason::OutputTooLarge,
+        format!("{method} produced a response of more than {size} bytes, and declares {limit}."),
+    )
+    .with_detail(
+        ErrorDetail::new(Status::ResourceExhausted)
+            .field("method")
+            .expected(format!("a response of at most {limit} bytes"))
+            .received(format!("more than {size} bytes"))
+            .hint(
+                "The call ran and its result was discarded, because a line nothing can                  buffer is not a response. Large data travels by pagination or by                  reference, which is a change to the API rather than to the call.",
+            ),
+    )
 }
 
 /// Whole microseconds since `start`, saturating rather than wrapping.
@@ -348,6 +511,8 @@ type Outcome = Result<Result<Value, SolarError>, PanicRecord>;
 struct Worker {
     jobs: SyncSender<Job>,
     outcomes: Receiver<Outcome>,
+    /// Set when this worker is given up on, so the thread can stop counting itself.
+    abandoned: Arc<AtomicBool>,
 }
 
 impl Worker {
@@ -355,6 +520,8 @@ impl Worker {
     fn start() -> std::io::Result<Worker> {
         let (job_sender, job_receiver) = sync_channel::<Job>(1);
         let (outcome_sender, outcome_receiver) = sync_channel::<Outcome>(1);
+        let abandoned = Arc::new(AtomicBool::new(false));
+        let thread_abandoned = Arc::clone(&abandoned);
 
         thread::Builder::new()
             .name("solar:worker".to_owned())
@@ -377,11 +544,17 @@ impl Worker {
                         break;
                     }
                 }
+                // Whichever way this thread ended, if it was abandoned it is no longer
+                // alive, and the cap of section 10 has room again.
+                if thread_abandoned.load(Ordering::SeqCst) {
+                    ALIVE_ABANDONED.fetch_sub(1, Ordering::SeqCst);
+                }
             })?;
 
         Ok(Worker {
             jobs: job_sender,
             outcomes: outcome_receiver,
+            abandoned,
         })
     }
 }
@@ -421,6 +594,10 @@ fn run_with_budget(
             )),
         }),
     );
+
+    if ALIVE_ABANDONED.load(Ordering::SeqCst) >= MAX_ABANDONED_WORKERS {
+        return Err(too_many_abandoned_error(name));
+    }
 
     WORKER.with_borrow_mut(|slot| {
         if slot.is_none() {
@@ -462,6 +639,13 @@ fn run_with_budget(
         };
 
         if !keep_the_worker {
+            // The thread is still running the handler, and there is no safe way to stop
+            // it. It is counted until it ends by itself, and dropping the worker is what
+            // tells it that nobody is listening any more.
+            if let Some(worker) = slot.as_ref() {
+                worker.abandoned.store(true, Ordering::SeqCst);
+                ALIVE_ABANDONED.fetch_add(1, Ordering::SeqCst);
+            }
             *slot = None;
         }
         result
@@ -506,6 +690,25 @@ fn panic_error(name: &str, panic: &PanicRecord) -> SolarError {
 }
 
 /// The `DEADLINE_EXCEEDED` error a handler that ran too long becomes.
+fn too_many_abandoned_error(name: &str) -> SolarError {
+    SolarError::new(
+        Reason::TooManyAbandoned,
+        format!(
+            "{MAX_ABANDONED_WORKERS} abandoned handlers are still running, so {name} did not start."
+        ),
+    )
+    .with_detail(
+        ErrorDetail::new(Status::Unavailable)
+            .field("method")
+            .expected(format!("fewer than {MAX_ABANDONED_WORKERS} abandoned handlers"))
+            .received(MAX_ABANDONED_WORKERS)
+            .hint(
+                "A handler that overruns its budget is abandoned rather than killed, and                  keeps its stack until it finishes. The count falls as they finish, so                  retry in a moment. system.info reports it as abandoned_workers.",
+            ),
+    )
+}
+
+/// The error a call that ran past its budget is answered with.
 fn timeout_error(name: &str, budget: Duration) -> SolarError {
     SolarError::new(
         Reason::HandlerTimeout,

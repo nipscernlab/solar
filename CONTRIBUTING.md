@@ -36,8 +36,8 @@ cargo xtask ci
 
 It runs what CI runs, in the same order, with the same flags: formatting, TOML
 formatting, spelling, lints, tests, doctests, documentation, the manifest check, the
-compatibility check, the documentation runner, the local path check, the supply chain
-check and the coverage floor. It runs every step even after one fails, and ends with a
+compatibility check, the changelog check, the documentation runner, the local path
+check, the supply chain check and the coverage floor. It runs every step even after one fails, and ends with a
 table of what passed and what did not.
 
 A test holds it to that: every check appears in both `xtask/src/ci.rs` and
@@ -133,12 +133,17 @@ object if something is collecting them.
 
 ## Opening a pull request
 
-The template asks four things, and they are all in `cargo xtask ci` except the last:
+The template asks four things, and they are all in `cargo xtask ci` except the judgement
+in the last one:
 
 1. `cargo xtask ci` green.
 2. The manifest regenerated, if you touched an API.
 3. The compatibility check green, and the version bumped if it asked for one.
-4. `CHANGELOG.md` and the documentation updated.
+4. **Code and documentation moved together.** Every change updates, in the same commit,
+   every document it affects: the README, the contract, the error catalogue, the guides,
+   `STATUS.md` and `CHANGELOG.md`. An outdated document is a defect, like a failing test.
+   `cargo xtask changelog` checks the part a machine can see, which is that a change under
+   `crates/` came with a changelog entry; the template lists the rest, and you tick it.
 
 Commits follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/),
 one per finished and tested step, with a body that says **why**. See `docs/STYLE.md`.

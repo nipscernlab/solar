@@ -3,7 +3,9 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use solar_core::api::{ANY, Api, ApiSpec, Example, SideEffect, Stability};
+use solar_core::api::{
+    ANY, Api, ApiSpec, DEFAULT_MAX_OUTPUT_BYTES, Example, SideEffect, Stability,
+};
 use solar_core::clock;
 use solar_core::context::Context;
 use solar_core::error::SolarError;
@@ -54,6 +56,7 @@ tells one ping from another when several are in flight.",
             stability: Stability::Experimental,
             since: "0.1.0",
             timeout_ms: 1_000,
+            max_output_bytes: DEFAULT_MAX_OUTPUT_BYTES,
             examples: vec![
                 Example::exact(
                     "bare",

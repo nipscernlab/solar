@@ -18,6 +18,7 @@
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
+mod changelog;
 mod ci;
 mod compat;
 mod coverage;
@@ -40,6 +41,10 @@ fn main() -> ExitCode {
         "ci" => ci::run(&root(), rest.contains(&"--fast")),
         "coverage" => coverage::run(&root(), rest.contains(&"--report")),
         "mutants" => mutants::run(&root(), &rest),
+        "changelog" => match rest.first() {
+            Some(base) if !base.starts_with('-') => changelog::run(&root(), base),
+            _ => changelog::run(&root(), "main"),
+        },
         "compat" => match rest.first() {
             Some(base) if !base.starts_with('-') => compat::run(&root(), base),
             // `main` is what a pull request is compared against by default.
@@ -82,6 +87,8 @@ cargo xtask <task>
   ci                  everything CI runs, in the same order, with a summary
   ci --fast           the same without the documentation runner and the coverage step,
                       which are most of the wall clock; the full command gates a push
+  changelog [<base>]  whether the code changed against <base>, default main, without
+                      CHANGELOG.md moving with it
   compat [<base>]     what changed in the manifest against <base>, default main, and
                       whether the version of each API answers for it
   coverage [--report] how much of the shipped code the tests run, against the floor;

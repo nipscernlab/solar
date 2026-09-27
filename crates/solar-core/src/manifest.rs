@@ -377,6 +377,7 @@ mod tests {
                 stability: crate::api::Stability::Experimental,
                 since: "0.1.0",
                 timeout_ms: 1,
+                max_output_bytes: crate::api::DEFAULT_MAX_OUTPUT_BYTES,
                 examples: Vec::new(),
             },
             params_schema: serde_json::json!({"$ref": "#/$defs/Thing"}),

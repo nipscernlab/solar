@@ -153,9 +153,22 @@ pub struct ApiSpec {
     pub since: &'static str,
     /// The wall clock budget of one call, strictly positive, enforced by dispatch.
     pub timeout_ms: u64,
+    /// The largest response this API may produce, in bytes of serialised `result.data`.
+    ///
+    /// Section 8.3 of the contract. [`DEFAULT_MAX_OUTPUT_BYTES`] is what an API declares
+    /// unless it has a reason to declare less. Dispatch refuses a larger response with
+    /// `RESOURCE_EXHAUSTED` / `OUTPUT_TOO_LARGE`, because a line nothing can buffer is
+    /// not a response: large data travels by pagination or by reference.
+    pub max_output_bytes: u64,
     /// At least one example, replayed by the test suite.
     pub examples: Vec<Example>,
 }
+
+/// The largest response an API may produce unless it declares a smaller one.
+///
+/// Eight mebibytes, half the request line limit of section 2 of the contract. It is a
+/// ceiling, not a target: an API that approaches it is an API that should paginate.
+pub const DEFAULT_MAX_OUTPUT_BYTES: u64 = 8 * 1024 * 1024;
 
 /// One API: a name, a version, a parameter type, an output type and a function.
 ///
@@ -206,6 +219,7 @@ pub struct ApiSpec {
 ///             stability: Stability::Experimental,
 ///             since: "0.1.0",
 ///             timeout_ms: 1_000,
+///             max_output_bytes: solar_core::api::DEFAULT_MAX_OUTPUT_BYTES,
 ///             examples: vec![Example::exact(
 ///                 "twice",
 ///                 "Shouts twice",

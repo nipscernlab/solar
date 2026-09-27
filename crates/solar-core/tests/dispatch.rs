@@ -18,7 +18,7 @@ use std::time::{Duration, Instant};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use solar_core::api::{Api, ApiSpec, Example, SideEffect, Stability};
+use solar_core::api::{Api, ApiSpec, DEFAULT_MAX_OUTPUT_BYTES, Example, SideEffect, Stability};
 use solar_core::context::Context;
 use solar_core::dispatch::Dispatcher;
 use solar_core::error::SolarError;
@@ -33,6 +33,11 @@ struct Fine {
     fine: bool,
 }
 
+#[derive(Debug, Serialize, JsonSchema)]
+struct Wordy {
+    text: String,
+}
+
 fn spec(summary: &'static str, timeout_ms: u64) -> ApiSpec {
     ApiSpec {
         summary,
@@ -44,6 +49,7 @@ fn spec(summary: &'static str, timeout_ms: u64) -> ApiSpec {
         stability: Stability::Experimental,
         since: "0.1.0",
         timeout_ms,
+        max_output_bytes: DEFAULT_MAX_OUTPUT_BYTES,
         examples: vec![Example::exact(
             "plain",
             "The only call",
@@ -205,4 +211,81 @@ fn a_broken_registry_answers_every_call_instead_of_taking_the_process_down() {
     assert_eq!(response["error"]["data"]["status"], "INTERNAL");
     assert_eq!(response["error"]["data"]["reason"], "INVARIANT_BROKEN");
     assert!(dispatcher.registry().is_none());
+}
+
+/// An API whose output is far larger than the size it declares.
+struct Floods;
+
+impl Api for Floods {
+    const NAME: &'static str = "test.floods";
+    const VERSION: &'static str = "1.0.0";
+    type Params = NoParams;
+    type Output = Wordy;
+
+    fn spec() -> ApiSpec {
+        ApiSpec {
+            max_output_bytes: 64,
+            ..spec("Produces more than it declares", 1_000)
+        }
+    }
+
+    fn call(_ctx: &Context, _params: NoParams) -> Result<Wordy, SolarError> {
+        Ok(Wordy {
+            text: "x".repeat(4096),
+        })
+    }
+}
+
+/// An API whose output is exactly as large as it is allowed to be.
+struct JustFits;
+
+impl Api for JustFits {
+    const NAME: &'static str = "test.just_fits";
+    const VERSION: &'static str = "1.0.0";
+    type Params = NoParams;
+    type Output = Wordy;
+
+    fn spec() -> ApiSpec {
+        // `{"text":"xxx..."}` is eleven bytes of envelope around the string itself.
+        ApiSpec {
+            max_output_bytes: 11 + 64,
+            ..spec("Produces exactly what it declares", 1_000)
+        }
+    }
+
+    fn call(_ctx: &Context, _params: NoParams) -> Result<Wordy, SolarError> {
+        Ok(Wordy {
+            text: "x".repeat(64),
+        })
+    }
+}
+
+#[test]
+fn a_response_larger_than_the_api_declares_is_refused() {
+    let registry = RegistryBuilder::new()
+        .register::<Floods>()
+        .register::<JustFits>()
+        .build()
+        .expect("the test registry must be valid");
+    let dispatcher = Dispatcher::new(Arc::new(registry));
+
+    let response = call(&dispatcher, "test.floods");
+    assert_eq!(response["error"]["data"]["status"], "RESOURCE_EXHAUSTED");
+    assert_eq!(response["error"]["data"]["reason"], "OUTPUT_TOO_LARGE");
+    assert_eq!(response["error"]["code"], -32004);
+    assert!(
+        response["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("64"),
+        "the message says what the limit was: {}",
+        response["error"]["message"]
+    );
+
+    // The limit is a limit, not a margin: a response of exactly the declared size passes.
+    let response = call(&dispatcher, "test.just_fits");
+    assert_eq!(
+        response["result"]["data"]["text"].as_str().unwrap().len(),
+        64
+    );
 }

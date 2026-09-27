@@ -40,6 +40,7 @@
 
 pub mod api;
 pub mod build_info;
+pub mod cancel;
 pub mod clock;
 pub mod context;
 pub mod dispatch;
@@ -54,6 +55,7 @@ pub mod reason;
 pub mod recording;
 pub mod registry;
 pub mod server;
+pub mod session;
 pub mod status;
 pub mod text;
 pub mod warning;

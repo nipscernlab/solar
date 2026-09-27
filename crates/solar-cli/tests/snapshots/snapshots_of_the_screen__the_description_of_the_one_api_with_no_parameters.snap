@@ -1,11 +1,12 @@
 ---
 source: crates/solar-cli/tests/snapshots_of_the_screen.rs
+assertion_line: 73
 expression: "screen(&[\"describe\", \"system.info\"])"
 ---
-system.info 1.1.0
+system.info 1.2.0
 Reports the operating system, the processor and the process
 
-What a caller needs in order to know which machine it is talking to: the operating system with its name and release, its family, the architecture, the width of a pointer, how many threads run at once, the current directory, the path of the binary that is answering, the temporary directory, and the two separators that differ between Windows and the rest, which is what makes a path in a response usable without guessing.
+What a caller needs in order to know which machine it is talking to: the operating system with its name and release, its family, the architecture, the width of a pointer, how many threads run at once, the current directory, the path of the binary that is answering, the temporary directory, and the two separators that differ between Windows and the rest, which is what makes a path in a response usable without guessing. It also reports `abandoned_workers`, the handlers that overran their budget and are still running, which is zero in a healthy process.
 
 The release is read where each system keeps it, and never by starting a program: the os-release file on Linux, `SystemVersion.plist` on macOS, and `RtlGetVersion` on Windows, which reports the real version where the documented alternative reports a compatibility lie. When that source is missing or unreadable, `os_name`, `os_release` and `os_build` are null and the call warns with OS_RELEASE_UNAVAILABLE saying which source was tried. Nothing is guessed, and the call still succeeds.
 

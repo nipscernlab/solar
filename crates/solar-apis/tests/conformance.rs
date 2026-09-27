@@ -168,6 +168,7 @@ fn the_suite_covers_the_cases_a_client_has_to_handle() {
         "notification_is_refused",
         "batch_answers_every_element_in_order",
         "batch_empty_is_refused",
+        "cancel_an_id_nothing_is_using",
         "parse_error",
         "method_not_found_suggests_the_closest",
         "unknown_parameter_is_refused",

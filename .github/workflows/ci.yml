@@ -99,6 +99,14 @@ jobs:
           git fetch --no-tags --depth=1 origin "${{ github.base_ref }}"
           cargo run --package xtask --locked --quiet -- compat "origin/${{ github.base_ref }}"
 
+      # Code and documentation move together. What a machine can check is that a change
+      # under crates/ came with a changelog entry; the pull request template lists the rest.
+      - name: The changelog moved with the code
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch --no-tags --depth=1 origin "${{ github.base_ref }}"
+          cargo run --package xtask --locked --quiet -- changelog "origin/${{ github.base_ref }}"
+
       - name: Release build
         run: cargo build --workspace --release --locked
 

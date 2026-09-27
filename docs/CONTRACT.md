@@ -268,6 +268,7 @@ Every API publishes a specification, and the manifest is the sum of those specif
 | `stability`     | `experimental`, `stable` or `deprecated`.                                      |
 | `since`         | The SOLAR version in which the API first appeared, not the API's own version.  |
 | `timeout_ms`    | The wall clock budget for one call, strictly positive. Enforced by dispatch.   |
+| `max_output_bytes` | The largest response this API may produce, in bytes of serialised JSON. Enforced by dispatch. See 8.3. |
 | `params_schema` | JSON Schema 2020-12, from the Rust parameter type. A fragment: see 8.1.        |
 | `output_schema` | JSON Schema 2020-12, from the Rust output type. A fragment: see 8.1.           |
 | `examples`      | At least one. See section 8.2.                                                 |
@@ -311,6 +312,21 @@ example pins down the shape of a timestamp, a path or a duration without pretend
 the value. An example never states a value that the machine running the test cannot
 reproduce.
 
+### 8.3 A response has a maximum size
+
+Every API declares `max_output_bytes`, the largest response it may produce, measured on
+the serialised `result.data`. The default for the whole contract is **8 MiB**, half the
+request line limit of section 2.
+
+An API that produces more gets `RESOURCE_EXHAUSTED` / `OUTPUT_TOO_LARGE`, and the response
+the caller receives is that error rather than a line nothing can buffer. The limit exists
+because a session is a pipe: a response that cannot be held in memory cannot be sent, and
+a caller that receives a line of unbounded size cannot read it either.
+
+**Large data travels by pagination or by reference**, never in one response: a page and a
+cursor, or a path to a file the caller opens. `docs/ADDING_AN_API.md` says so where an API
+is written.
+
 ## 9. Cancellation
 
 A caller that has stopped waiting says so with an ordinary call. SOLAR accepts no
@@ -329,7 +345,11 @@ can precede the answer to the call sent first. JSON-RPC 2.0 allows this, and `id
 caller matches an answer to its question.
 
 **A client that never calls `solar.cancel` sees its responses in the order of its
-requests.** That is a promise, and a test holds it.
+requests.** That is a promise, and a test holds it. Two things a client does to itself are
+outside it, and both are answered the moment they are read rather than in their turn: a
+request that arrives at a full queue, section 9.6, and a request whose `id` is already in
+flight, section 9.5. A client that does neither, which is every client that reads its
+responses, sees pure order.
 
 ### 9.2 What `solar.cancel` reports
 
@@ -370,6 +390,29 @@ becomes free again as soon as its call is answered.
 does not reuse an `id` while the first call is still unanswered, which it could not have
 matched anyway.
 
+### 9.6 The queue is bounded
+
+The queue of section 9.1 is bounded twice: **256 requests** and **64 MiB** of request
+text, whichever is reached first. A session that reads faster than it runs would otherwise
+grow without end.
+
+When the queue is full, the session **keeps reading**. Each request that arrives is
+answered at once with `RESOURCE_EXHAUSTED` / `QUEUE_FULL`, saying how many requests and
+how many bytes are waiting, and `solar.cancel` is still accepted and still answered at
+once, because a full queue is exactly when cancelling matters.
+
+A client that sends one request and waits for its response never meets this limit.
+
+### 9.7 What a session remembers
+
+To answer `already_finished`, a session remembers the identifiers of the calls it has
+answered: the **most recent 1024**. An `id` older than that is reported as `unknown`
+rather than `already_finished`.
+
+The two outcomes mean the same thing to a caller that is cancelling, which is that there
+is nothing to cancel. The distinction is a courtesy, and it is bounded so that a long
+session does not grow with every call it has ever answered.
+
 ## 10. Timeouts and panics
 
 - Dispatch runs every handler on a worker thread and waits for `timeout_ms`.
@@ -380,6 +423,11 @@ matched anyway.
   has no safe way to kill a thread. An abandoned handler keeps running until it finishes,
   and its result is discarded. Handlers are therefore written so that their own internal
   budgets are shorter than `timeout_ms`.
+- **Abandoned threads are capped at 64.** Each one keeps its stack, so an API that
+  overruns on every call would otherwise consume the process. While 64 are alive, a new
+  call is refused with `UNAVAILABLE` / `TOO_MANY_ABANDONED` before it starts, and the
+  count falls as the abandoned handlers finish. A caller can read the current count in
+  `system.info`, under `abandoned_workers`.
 - Cancellation has a section of its own, section 9. A handler that ignores its token
   is abandoned exactly like one that overruns, which is what this section describes.
 
@@ -416,6 +464,11 @@ instead of waiting for a human reviewer.
 | Standard output carries protocol only, even with `SOLAR_LOG=trace` | `solar-cli/tests/cli.rs::logging_never_touches_stdout` |
 | A batch answers in order, one response per element | `solar-apis/tests/properties.rs::a_batch_answers_every_element_in_order`, `conformance/cases/batch_*` |
 | A batch that is wrong as a whole answers with a single response | `solar-core/src/protocol.rs` tests, `solar-cli/tests/cli.rs::an_empty_batch_is_refused_with_a_single_response` |
+| Every request gets exactly one response, whatever the cancellation timing | `solar-apis/tests/cancellation.rs::every_request_gets_exactly_one_response_however_the_race_falls` |
+| A client that never cancels sees its responses in order | `::a_client_that_never_cancels_sees_its_responses_in_order` |
+| The queue is bounded, and a cancellation is answered even when it is full | `::a_full_queue_refuses_new_requests_and_still_answers_a_cancellation` |
+| A response larger than its API declares is refused | `solar-core/tests/dispatch.rs::a_response_larger_than_the_api_declares_is_refused` |
+| Abandoned handlers are capped, and the count is visible | `solar-core/tests/abandoned.rs::abandoned_handlers_are_capped_and_the_count_is_visible` |
 
 ## 13. Exit codes of the `solar` binary
 

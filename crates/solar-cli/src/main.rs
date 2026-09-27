@@ -280,20 +280,19 @@ fn serve(
     if input.is_terminal() {
         logging::info("reading from a terminal: one JSON object per line, Ctrl+Z or Ctrl+D to end");
     }
+    // The handles rather than their locks: a session reads on a thread of its own, and a
+    // `StdinLock` cannot cross a thread boundary. `Stdin` and `Stdout` take their own lock
+    // per call, and the reader adds a buffer of its own so that is once per chunk.
+    let reader = std::io::BufReader::with_capacity(64 * 1024, input);
     match record {
         None => {
-            solar_core::server::serve(input.lock(), output.lock(), dispatcher)?;
+            solar_core::server::serve(reader, output, dispatcher)?;
         }
         Some(path) => {
             let file = std::fs::File::create(path)?;
             let mut writer = std::io::BufWriter::new(file);
             logging::info(&format!("recording this session into {}", path.display()));
-            solar_core::server::serve_recording(
-                input.lock(),
-                output.lock(),
-                dispatcher,
-                Some(&mut writer),
-            )?;
+            solar_core::server::serve_recording(reader, output, dispatcher, Some(&mut writer))?;
         }
     }
     Ok(ExitCode::SUCCESS)
@@ -307,6 +306,28 @@ fn serve(
 #[allow(
     clippy::unnecessary_wraps,
     reason = "every command of this binary returns the same type, so main can treat               them alike; this one happens to have nothing that can fail on output"
+)]
+/// The identifiers one recorded line carries: one for an object, several for a batch.
+///
+/// A recording is a chronological log, and since section 9 a session reads on a thread of
+/// its own, so a request and its answer are no longer always adjacent. Identifiers are what
+/// JSON-RPC 2.0 matches an answer to a question with, so they are what `replay` uses too.
+fn identifiers(line: &str) -> Vec<Value> {
+    let Ok(value) = serde_json::from_str::<Value>(line) else {
+        return Vec::new();
+    };
+    match value {
+        Value::Array(elements) => elements
+            .iter()
+            .map(|element| element.get("id").cloned().unwrap_or(Value::Null))
+            .collect(),
+        other => vec![other.get("id").cloned().unwrap_or(Value::Null)],
+    }
+}
+
+#[allow(
+    clippy::unnecessary_wraps,
+    reason = "every command of this binary returns the same type, so main can treat them               alike; this one happens to have nothing left that can fail on output"
 )]
 fn replay(dispatcher: &Dispatcher, file: &std::path::Path) -> std::io::Result<ExitCode> {
     let text = match std::fs::read_to_string(file) {
@@ -324,34 +345,51 @@ fn replay(dispatcher: &Dispatcher, file: &std::path::Path) -> std::io::Result<Ex
         }
     };
 
+    let mut answers: Vec<String> = entries
+        .iter()
+        .filter(|entry| entry.direction == Direction::Out)
+        .map(|entry| entry.line.clone())
+        .collect();
+    let requests: Vec<&String> = entries
+        .iter()
+        .filter(|entry| entry.direction == Direction::In)
+        .map(|entry| &entry.line)
+        .collect();
+
     let mut sent = 0usize;
     let mut differing = 0usize;
-    let mut expected: Option<String> = None;
+    let mut unanswered = 0usize;
 
-    for entry in entries {
-        match entry.direction {
-            Direction::In => {
-                let answered = dispatcher.handle_line(&entry.line).to_line();
-                expected = Some(answered);
-                sent += 1;
-            }
-            Direction::Out => {
-                let Some(answered) = expected.take() else {
-                    // A response with no request before it: the recording is not a
-                    // session, and replaying it would prove nothing.
-                    eprintln!("solar: the recording has an answer before any request");
-                    return Ok(ExitCode::from(Status::InvalidArgument.exit_code()));
-                };
-                let then = solar_core::recording::without_volatile_values(&entry.line);
-                let now = solar_core::recording::without_volatile_values(&answered);
-                if then != now {
-                    differing += 1;
-                    println!("differs, request {sent}:");
-                    println!("  recorded  {}", entry.line);
-                    println!("  now       {answered}");
-                }
-            }
+    for request in requests {
+        sent += 1;
+        let answered = dispatcher.answer_line(request).line;
+        let wanted = identifiers(&answered);
+
+        let Some(index) = answers
+            .iter()
+            .position(|recorded| identifiers(recorded) == wanted)
+        else {
+            unanswered += 1;
+            println!("no recorded answer, request {sent}:");
+            println!("  sent      {request}");
+            println!("  now       {answered}");
+            continue;
+        };
+
+        let recorded = answers.remove(index);
+        let then = solar_core::recording::without_volatile_values(&recorded);
+        let now = solar_core::recording::without_volatile_values(&answered);
+        if then != now {
+            differing += 1;
+            println!("differs, request {sent}:");
+            println!("  recorded  {recorded}");
+            println!("  now       {answered}");
         }
+    }
+
+    for leftover in &answers {
+        println!("recorded answer nothing asked for again:");
+        println!("  recorded  {leftover}");
     }
 
     println!(
@@ -361,7 +399,7 @@ fn replay(dispatcher: &Dispatcher, file: &std::path::Path) -> std::io::Result<Ex
         if differing == 1 { "s" } else { "" }
     );
 
-    if differing == 0 {
+    if differing == 0 && unanswered == 0 && answers.is_empty() {
         Ok(ExitCode::SUCCESS)
     } else {
         Ok(ExitCode::from(Status::FailedPrecondition.exit_code()))

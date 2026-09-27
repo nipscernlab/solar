@@ -3,7 +3,9 @@
 use schemars::JsonSchema;
 use serde::Deserialize;
 use serde_json::json;
-use solar_core::api::{ANY, Api, ApiSpec, ErrorSpec, Example, SideEffect, Stability};
+use solar_core::api::{
+    ANY, Api, ApiSpec, DEFAULT_MAX_OUTPUT_BYTES, ErrorSpec, Example, SideEffect, Stability,
+};
 use solar_core::context::Context;
 use solar_core::error::SolarError;
 use solar_core::manifest::{ManifestEntry, entry_of};
@@ -44,6 +46,7 @@ with the closest ones that do.",
             stability: Stability::Experimental,
             since: "0.1.0",
             timeout_ms: 2_000,
+            max_output_bytes: DEFAULT_MAX_OUTPUT_BYTES,
             examples: vec![Example::subset(
                 "describe_ping",
                 "Everything about solar.ping",

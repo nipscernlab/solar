@@ -292,8 +292,7 @@ that matters.
 
 What the worker actually shares is one `std::sync::mpsc` channel pair between exactly two
 threads, and one `Mutex<Vec<Warning>>` inside the context. There is no lock ordering,
-because there is one lock. There is no atomic of SOLAR's own anywhere: `grep -rn
-"atomic" crates/` finds nothing. The interleavings that could go wrong are the ones inside
+because there is one lock. The interleavings that could go wrong are the ones inside
 `mpsc` and `Mutex`, which are the standard library's to prove, not this repository's.
 
 Using `loom` would mean making `dispatch` generic over its synchronisation primitives, or
@@ -307,5 +306,23 @@ a handler that overruns is abandoned inside its budget, the next call does not w
 the abandoned one and does not receive its answer, and fifty calls in a row reuse one
 worker and stay correct. Those tests would fail if the channel handling were wrong.
 
-**Revisit when** dispatch gains a second lock, an atomic, or more than one worker thread.
-Any of the three makes the interleavings SOLAR's own, and then `loom` earns the change.
+**Revisited on 27 September 2026, as this entry said to be.** Cancellation added exactly
+what the trigger named: a second lock, the `Mutex<Inner>` of `SessionState`; atomics, the
+one-way flag of `Cancellation` and the counter of abandoned workers; and a second thread
+per session. The answer is still no, for a reason that has changed:
+
+**Every transition of the session state happens under one lock.** A message is queued,
+taken, cancelled or finished inside `SessionState`, and each of those is one critical
+section; no lock is ever held while another is taken, so there is no ordering to get
+wrong. What is left for `loom` to explore is the order in which those critical sections
+run, and that order is small enough to enumerate: a cancellation arrives while its target
+is queued, while it is running, or after it is finished. Each of the three is tested
+deterministically in `solar-apis/tests/cancellation.rs`, with handlers that stop inside the
+session until the test lets them go, which is stronger than repeating an unsynchronised
+race and hoping to hit them. The unsynchronised race is also repeated, forty times, as a
+second net.
+
+**Revisit when** a transition of the session state happens outside that lock, or when the
+two threads talk to each other through atomics rather than through it. Either makes the
+interleavings SOLAR's own in a way enumeration cannot cover, and then `loom` earns the
+change to the shape of the code.

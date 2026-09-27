@@ -25,6 +25,20 @@ Three promises hold the design together, and every rule below serves one of them
 3. **One template, no exceptions.** Every API is declared the same way, and what deviates
    is refused by a test rather than by a reviewer.
 
+## The fixed rule: code and documentation move together
+
+Decided on 27 September 2026, for every project of the laboratory.
+
+**Every change updates, in the same commit, every document it affects:** the README, the
+contract, the error catalogue, the guides, `STATUS.md` and `CHANGELOG.md`. An outdated
+document is a defect, exactly like a failing test, and it is worse than no document
+because a reader trusts it.
+
+What a machine can check, it checks: a change under `crates/` comes with a `CHANGELOG.md`
+entry, every shell block in the documentation really runs, and the manifest is what the
+generator produces. The rest is on the pull request template, which lists it so that
+nobody has to remember it.
+
 ## The one path for adding an API
 
 ```bash no-run
@@ -72,6 +86,7 @@ for the loop between commits; it is not the gate.
 | Every declared error exists in `docs/ERRORS.md` | the same, and `crates/solar-core/tests/docs.rs` |
 | The manifest is what the generator produces | `cargo xtask manifest --check` |
 | A breaking change carries a major bump of its API | `cargo xtask compat` |
+| A change under `crates/` carries a changelog entry | `cargo xtask changelog` |
 | No `unwrap`, `expect` or `panic!` outside tests | clippy, denied at workspace level |
 | Every `allow` carries a reason, every `unsafe` block a `SAFETY` comment | clippy |
 | British English | `typos`, with `locale = "en-gb"` |
@@ -105,3 +120,5 @@ for the loop between commits; it is not the gate.
   time, in the pull request. Development dependencies are free.
 - Never change the shape of an existing response without the version bump `cargo xtask
   compat` asks for.
+- Never leave a document behind. If the change makes a sentence in `docs/` or the README
+  untrue, the same commit fixes it.

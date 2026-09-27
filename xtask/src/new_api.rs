@@ -132,7 +132,7 @@ const TEMPLATE: &str = r#"//! `__NAME__`: one line saying what this API is for.
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use solar_core::api::{Api, ApiSpec, Example, SideEffect, Stability};
+use solar_core::api::{Api, ApiSpec, DEFAULT_MAX_OUTPUT_BYTES, Example, SideEffect, Stability};
 use solar_core::context::Context;
 use solar_core::error::SolarError;
 
@@ -177,6 +177,7 @@ describes.",
             stability: Stability::Experimental,
             since: "0.1.0",
             timeout_ms: 1_000,
+            max_output_bytes: DEFAULT_MAX_OUTPUT_BYTES,
             examples: vec![Example::exact(
                 "plain",
                 "The simplest call there is",

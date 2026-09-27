@@ -171,6 +171,27 @@ that is too large holds the session for a long time while the caller cannot tell
 has got. The whole batch is refused, with a single response rather than an array. `details`
 reports the limit and how many elements arrived. Split the batch.
 
+### QUEUE_FULL
+
+The session is already holding as many unanswered requests as it may hold: 256 requests,
+or 64 MiB of request text, whichever came first. The session keeps reading, and every
+request that arrives while the queue is full is answered with this at once. `details`
+reports both limits and both current values.
+
+`solar.cancel` is never refused this way. A full queue is exactly when cancelling matters,
+so it is accepted and answered even then.
+
+A client that sends one request and waits for its response never meets this.
+
+### OUTPUT_TOO_LARGE
+
+The API produced a response larger than the `max_output_bytes` it declares, 8 MiB by
+default. The call ran and its result was discarded, because a line nothing can buffer is
+not a response. `details` reports the limit and the size that was produced.
+
+This is a bug in the API rather than in the call: large data travels by pagination or by
+reference, never in one response. Report it with the `meta` block.
+
 ## DEADLINE_EXCEEDED
 
 JSON-RPC code `-32005`. Retriable. The work ran past the time it was given.
@@ -197,6 +218,17 @@ drops is the right response.
 SOLAR could not read something about its own process that it needs to answer: the current
 directory, which can happen when the directory has been deleted underneath the process, or
 the path of its own executable.
+
+### TOO_MANY_ABANDONED
+
+As many abandoned handlers are still alive as the process allows, which is 64. A handler
+that overruns its budget is abandoned rather than killed, and each abandoned thread keeps
+its stack until it finishes on its own. While the cap is reached, a new call is refused
+with this before it starts, so the process cannot be consumed by an API that overruns on
+every call.
+
+The count falls as the abandoned handlers finish, so retrying later is the right response.
+`system.info` reports the current count in `abandoned_workers`.
 
 ## UNIMPLEMENTED
 

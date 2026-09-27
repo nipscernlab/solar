@@ -1,20 +1,30 @@
-//! The NDJSON session: read a line, answer it, read the next one.
+//! The NDJSON session: read the input on one thread, run the calls on another.
 //!
-//! The loop is deliberately sequential. One message is read, dispatched and answered before
-//! the next is read, so responses come back in request order and a caller never has to
-//! correlate anything. A batch is one message: it answers with one line holding the array
-//! of its responses, in the order of its elements, as section 3.2 of the contract says.
+//! **Calls run one at a time, in the order they arrived**, so a client that never cancels
+//! sees its responses in the order of its requests. A batch is one message: it answers
+//! with one line holding the array of its responses, in the order of its elements, which
+//! is section 3.2 of the contract.
+//!
+//! The reading is a thread of its own because of section 9: a session has to keep reading
+//! while a call is running, or `solar.cancel` would wait behind the very call it is
+//! cancelling. `solar.cancel` is the one message answered where it is read; everything
+//! else goes through the queue, and the queue is bounded by section 9.6.
 
 use std::io::{BufRead, Write};
+use std::sync::atomic::AtomicU64;
+use std::sync::{Arc, Mutex, PoisonError};
+use std::time::Instant;
 
+use crate::cancel::Cancellation;
 use crate::clock;
-use crate::dispatch::Dispatcher;
+use crate::dispatch::{Dispatcher, InSession};
 use crate::error::{ErrorDetail, SolarError};
 use crate::logging;
 use crate::meta::Meta;
-use crate::protocol::{MAX_REQUEST_BYTES, Response};
+use crate::protocol::{Incoming, MAX_REQUEST_BYTES, Request, Response, read_line};
 use crate::reason::Reason;
 use crate::recording::{Direction, Recorder};
+use crate::session::{CANCEL_METHOD, SessionState, Work, refusal_response};
 use crate::status::Status;
 
 /// What one attempt at reading a line produced.
@@ -123,6 +133,66 @@ fn not_utf8(position: usize) -> SolarError {
     )
 }
 
+/// Where a session writes, and what it writes down as it goes.
+///
+/// Both threads of a session write here, so it lives behind one lock: a response is one
+/// line, and two half lines would not be a protocol.
+struct Sink<W: Write, F: Write> {
+    output: W,
+    recorder: Option<Recorder<F>>,
+}
+
+impl<W: Write, F: Write> Sink<W, F> {
+    /// Writes one line, flushes it, and records it as output.
+    fn write(&mut self, line: &str) -> std::io::Result<()> {
+        logging::trace(&format!("<-- {line}"));
+        self.output.write_all(line.as_bytes())?;
+        self.output.write_all(b"\n")?;
+        self.output.flush()?;
+        if let Some(recorder) = self.recorder.as_mut() {
+            recorder.record(Direction::Out, line)?;
+        }
+        Ok(())
+    }
+
+    /// Records one line as input. Nothing is written to the output.
+    fn record_in(&mut self, line: &str) -> std::io::Result<()> {
+        if let Some(recorder) = self.recorder.as_mut() {
+            recorder.record(Direction::In, line)?;
+        }
+        Ok(())
+    }
+}
+
+/// Everything a session shares between the thread that reads and the thread that runs.
+struct Wiring<'a, W: Write, F: Write> {
+    state: Arc<SessionState>,
+    sink: Mutex<Sink<W, F>>,
+    dispatcher: &'a Dispatcher,
+    answered: AtomicU64,
+}
+
+impl<W: Write, F: Write> Wiring<'_, W, F> {
+    /// Writes one line and counts the calls it answered.
+    fn answer(&self, line: &str, calls: usize) -> std::io::Result<()> {
+        self.sink
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .write(line)?;
+        self.answered
+            .fetch_add(calls as u64, std::sync::atomic::Ordering::SeqCst);
+        Ok(())
+    }
+
+    /// Writes the `CANCELLED` responses a cancellation produced, before its own answer.
+    fn answer_the_cancelled(&self) -> std::io::Result<()> {
+        for response in self.state.take_pending() {
+            self.answer(&response.to_line(), 1)?;
+        }
+        Ok(())
+    }
+}
+
 /// Runs a session until the input ends.
 ///
 /// Every line that is a message produces exactly one response line, flushed immediately so
@@ -134,7 +204,7 @@ fn not_utf8(position: usize) -> SolarError {
 ///
 /// Returns the first input or output failure. A failure here means the session itself broke,
 /// which the command line interface reports as exit code 70.
-pub fn serve<R: BufRead, W: Write>(
+pub fn serve<R: BufRead + Send, W: Write + Send>(
     input: R,
     output: W,
     dispatcher: &Dispatcher,
@@ -151,41 +221,67 @@ pub fn serve<R: BufRead, W: Write>(
 ///
 /// Returns the first input, output or recording failure. A session whose recording
 /// cannot be written stops, because half a recording is worse than none.
-pub fn serve_recording<R: BufRead, W: Write, F: Write>(
-    mut input: R,
-    mut output: W,
+pub fn serve_recording<R: BufRead + Send, W: Write + Send, F: Write + Send>(
+    input: R,
+    output: W,
     dispatcher: &Dispatcher,
     recorder: Option<&mut F>,
 ) -> std::io::Result<u64> {
-    let mut recorder = recorder.map(Recorder::new);
+    let wiring = Wiring {
+        state: Arc::new(SessionState::new()),
+        sink: Mutex::new(Sink {
+            output,
+            recorder: recorder.map(Recorder::new),
+        }),
+        dispatcher,
+        answered: AtomicU64::new(0),
+    };
+
+    // Two threads, because section 9 of the contract says a session keeps reading while a
+    // call is running: otherwise `solar.cancel` would wait behind the call it cancels.
+    // The calls themselves still run one at a time, in the order they arrived.
+    let reading = std::thread::scope(|scope| {
+        let reader = scope.spawn(|| {
+            let outcome = read_into(input, &wiring);
+            // Whatever happened, the running thread must stop waiting for more work.
+            wiring.state.close();
+            outcome
+        });
+        let running = run_from_queue(&wiring);
+        let reading = reader.join().unwrap_or_else(|_| {
+            Err(std::io::Error::other(
+                "the thread reading the session panicked",
+            ))
+        });
+        running.and(reading)
+    });
+
+    let answered = wiring.answered.load(std::sync::atomic::Ordering::SeqCst);
+    reading?;
+    logging::info(&format!("the session ended after {answered} calls"));
+    Ok(answered)
+}
+
+/// Reads the input, answers what cannot wait, and queues the rest.
+fn read_into<R: BufRead, W: Write, F: Write>(
+    mut input: R,
+    wiring: &Wiring<'_, W, F>,
+) -> std::io::Result<()> {
     let mut buffer: Vec<u8> = Vec::with_capacity(8 * 1024);
-    let mut answered = 0u64;
 
     loop {
         match read_line_limited(&mut input, &mut buffer, MAX_REQUEST_BYTES)? {
-            Outcome::Eof => {
-                logging::info(&format!("the session ended after {answered} calls"));
-                return Ok(answered);
-            }
+            Outcome::Eof => return Ok(()),
             Outcome::TooLong(bytes) => {
                 logging::warn(&format!("a request of {bytes} bytes was refused"));
-                let response = bare_failure(too_large(bytes));
-                let written = write_response(&mut output, &response)?;
-                if let Some(recorder) = recorder.as_mut() {
-                    recorder.record(Direction::Out, &written)?;
-                }
-                answered += 1;
+                wiring.answer(&bare_failure(too_large(bytes)).to_line(), 1)?;
             }
             Outcome::Line => {
                 let line = match std::str::from_utf8(&buffer) {
                     Ok(text) => text.trim_end_matches('\r'),
                     Err(broken) => {
                         let response = bare_failure(not_utf8(broken.valid_up_to()));
-                        let written = write_response(&mut output, &response)?;
-                        if let Some(recorder) = recorder.as_mut() {
-                            recorder.record(Direction::Out, &written)?;
-                        }
-                        answered += 1;
+                        wiring.answer(&response.to_line(), 1)?;
                         continue;
                     }
                 };
@@ -195,33 +291,104 @@ pub fn serve_recording<R: BufRead, W: Write, F: Write>(
                 }
 
                 logging::trace(&format!("--> {line}"));
-                if let Some(recorder) = recorder.as_mut() {
-                    recorder.record(Direction::In, line)?;
-                }
-                let answer = dispatcher.answer_line(line);
-                write_line(&mut output, &answer.line)?;
-                if let Some(recorder) = recorder.as_mut() {
-                    recorder.record(Direction::Out, &answer.line)?;
-                }
-                answered += answer.calls as u64;
+                wiring
+                    .sink
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .record_in(line)?;
+                accept(line, wiring)?;
             }
         }
     }
 }
 
-/// Serialises one response, writes it, flushes it, and gives back what it wrote.
-fn write_response<W: Write>(output: &mut W, response: &Response) -> std::io::Result<String> {
-    let line = response.to_line();
-    write_line(output, &line)?;
-    Ok(line)
+/// Answers a line that cannot wait, or puts it in the queue.
+fn accept<W: Write, F: Write>(line: &str, wiring: &Wiring<'_, W, F>) -> std::io::Result<()> {
+    let started_at = clock::now_rfc3339_micros();
+    let start = Instant::now();
+
+    let work = match read_line(line) {
+        Incoming::One(Ok(request)) if request.method == CANCEL_METHOD => {
+            return cancel_now(request, started_at, start, wiring);
+        }
+        Incoming::One(Ok(request)) => Work::One(request),
+        Incoming::One(Err(failed)) | Incoming::Refused(failed) => Work::Failed(failed),
+        Incoming::Batch(elements) => Work::Batch(elements),
+    };
+
+    let bytes = line.len();
+    match wiring.state.admit(work, bytes, started_at, start) {
+        Ok(()) => Ok(()),
+        Err((refusal, work)) => {
+            // Section 9.6: a session that cannot queue a message still answers it, at
+            // once, so that the caller learns now rather than when the queue drains.
+            let calls = work.calls();
+            let response = refusal_response(refusal, &work, &wiring.state);
+            wiring.answer(&response.to_line(), calls)
+        }
+    }
 }
 
-/// Writes one line of output and flushes it, so a caller reading a pipe never waits.
-fn write_line<W: Write>(output: &mut W, line: &str) -> std::io::Result<()> {
+/// Answers `solar.cancel` the moment it is read, which is what section 9.1 promises.
+fn cancel_now<W: Write, F: Write>(
+    request: Request,
+    started_at: String,
+    start: Instant,
+    wiring: &Wiring<'_, W, F>,
+) -> std::io::Result<()> {
+    // A cancellation is answered even when the id it carries is in flight, because it is
+    // not a call on that id: it is a question about it.
+    let in_session = InSession {
+        cancellation: Cancellation::new(),
+        session: Some(Arc::clone(&wiring.state)),
+    };
+    let response = wiring
+        .dispatcher
+        .dispatch_in_session(request, started_at, start, &in_session);
+
+    // A call cancelled while it was queued has already been answered with CANCELLED, so
+    // that response goes out before the one that says so.
+    wiring.answer_the_cancelled()?;
+    wiring.answer(&response.to_line(), 1)
+}
+
+/// Runs the queued messages, one at a time, in the order they arrived.
+fn run_from_queue<W: Write, F: Write>(wiring: &Wiring<'_, W, F>) -> std::io::Result<()> {
+    while let Some((queued, token)) = wiring.state.take() {
+        let ids = queued.work.ids();
+        let calls = queued.work.calls();
+        let in_session = InSession {
+            cancellation: token,
+            session: Some(Arc::clone(&wiring.state)),
+        };
+        let line = wiring.dispatcher.answer_work(
+            queued.work,
+            &queued.started_at,
+            queued.start,
+            &in_session,
+        );
+        // Finished before the line is written: a cancellation that arrives from here on
+        // is told `already_finished`, which is exactly what happened.
+        wiring.state.finish(&ids);
+        wiring.answer(&line, calls)?;
+    }
+    Ok(())
+}
+
+/// Serialises one response, writes it, flushes it, and gives back what it wrote.
+///
+/// This is the one call form, for a caller that has a [`Response`] rather than a session.
+///
+/// # Errors
+///
+/// Returns the first output failure.
+pub fn write_response<W: Write>(output: &mut W, response: &Response) -> std::io::Result<String> {
+    let line = response.to_line();
     logging::trace(&format!("<-- {line}"));
     output.write_all(line.as_bytes())?;
     output.write_all(b"\n")?;
-    output.flush()
+    output.flush()?;
+    Ok(line)
 }
 
 /// A response to something that never became a request, so it has no id and no method.

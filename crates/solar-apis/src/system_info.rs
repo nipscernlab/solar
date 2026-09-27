@@ -3,7 +3,9 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use solar_core::api::{ANY, Api, ApiSpec, ErrorSpec, Example, SideEffect, Stability};
+use solar_core::api::{
+    ANY, Api, ApiSpec, DEFAULT_MAX_OUTPUT_BYTES, ErrorSpec, Example, SideEffect, Stability,
+};
 use solar_core::context::Context;
 use solar_core::error::{ErrorDetail, SolarError};
 use solar_core::reason::Reason;
@@ -45,6 +47,13 @@ pub struct Output {
     pub path_separator: String,
     /// What separates the entries of the `PATH` variable: a semicolon or a colon.
     pub path_list_separator: String,
+    /// How many handlers overran their budget and are still running.
+    ///
+    /// A handler that overruns is abandoned rather than killed, so it keeps its thread
+    /// until it finishes on its own. A healthy process reports zero. When this reaches
+    /// the cap of section 10 of the contract, new calls are refused with
+    /// `TOO_MANY_ABANDONED` until some of them finish.
+    pub abandoned_workers: u32,
 }
 
 /// Reports the machine and the process.
@@ -53,7 +62,7 @@ pub struct SystemInfo;
 
 impl Api for SystemInfo {
     const NAME: &'static str = "system.info";
-    const VERSION: &'static str = "1.1.0";
+    const VERSION: &'static str = "1.2.0";
     type Params = Params;
     type Output = Output;
 
@@ -65,7 +74,9 @@ What a caller needs in order to know which machine it is talking to: the operati
 with its name and release, its family, the architecture, the width of a pointer, how many \
 threads run at once, the current directory, the path of the binary that is answering, the \
 temporary directory, and the two separators that differ between Windows and the rest, \
-which is what makes a path in a response usable without guessing.\n\n\
+which is what makes a path in a response usable without guessing. It also reports \
+`abandoned_workers`, the handlers that overran their budget and are still running, which \
+is zero in a healthy process.\n\n\
 The release is read where each system keeps it, and never by starting a program: the \
 os-release file on Linux, `SystemVersion.plist` on macOS, and `RtlGetVersion` on Windows, \
 which reports the real version where the documented alternative reports a compatibility \
@@ -81,6 +92,7 @@ variables, no network names, no serial numbers.",
             stability: Stability::Experimental,
             since: "0.1.0",
             timeout_ms: 2_000,
+            max_output_bytes: DEFAULT_MAX_OUTPUT_BYTES,
             examples: vec![Example::subset(
                 "plain",
                 "The machine this call ran on",
@@ -98,7 +110,8 @@ variables, no network names, no serial numbers.",
                     "executable": ANY,
                     "temp_dir": ANY,
                     "path_separator": ANY,
-                    "path_list_separator": ANY
+                    "path_list_separator": ANY,
+                    "abandoned_workers": ANY
                 }),
             )],
         }
@@ -133,6 +146,8 @@ variables, no network names, no serial numbers.",
             arch: std::env::consts::ARCH.to_owned(),
             pointer_width: usize::BITS,
             cpu_count,
+            abandoned_workers: u32::try_from(solar_core::dispatch::abandoned_workers())
+                .unwrap_or(u32::MAX),
             current_dir: current_dir.display().to_string(),
             executable: executable.display().to_string(),
             temp_dir: std::env::temp_dir().display().to_string(),
@@ -179,6 +194,10 @@ mod tests {
         assert!(!output.temp_dir.is_empty());
         assert!(output.cpu_count.unwrap_or(1) >= 1);
         assert!(output.pointer_width == 64 || output.pointer_width == 32);
+        assert_eq!(
+            output.abandoned_workers, 0,
+            "a healthy process has abandoned nothing"
+        );
     }
 
     #[test]

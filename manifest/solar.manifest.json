@@ -38,6 +38,31 @@
       ],
       "type": "object"
     },
+    "CancelOutcome": {
+      "description": "What cancelling one call turned out to do, which is what `solar.cancel` reports.",
+      "oneOf": [
+        {
+          "const": "cancelled_while_queued",
+          "description": "The call had not started. It will not start, and it has already been answered\nwith `CANCELLED`.",
+          "type": "string"
+        },
+        {
+          "const": "cancellation_requested",
+          "description": "The call is running. Its handler has been told, and it will end with its own\nresult or with `CANCELLED`, whichever it reaches first.",
+          "type": "string"
+        },
+        {
+          "const": "already_finished",
+          "description": "The call was answered before the cancellation arrived. Nothing changed.",
+          "type": "string"
+        },
+        {
+          "const": "unknown",
+          "description": "No call with that identifier has been seen in this session. Nothing changed.",
+          "type": "string"
+        }
+      ]
+    },
     "ErrorSpec": {
       "description": "One `{status, reason}` pair an API declares it may return.",
       "properties": {
@@ -112,6 +137,12 @@
           "description": "Whether calling twice has the same effect as calling once.",
           "type": "boolean"
         },
+        "max_output_bytes": {
+          "description": "The largest response this API may produce, in bytes of serialised `result.data`.\n\nSection 8.3 of the contract. [`DEFAULT_MAX_OUTPUT_BYTES`] is what an API declares\nunless it has a reason to declare less. Dispatch refuses a larger response with\n`RESOURCE_EXHAUSTED` / `OUTPUT_TOO_LARGE`, because a line nothing can buffer is\nnot a response: large data travels by pagination or by reference.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
         "name": {
           "description": "The method name.",
           "type": "string"
@@ -163,6 +194,7 @@
         "stability",
         "since",
         "timeout_ms",
+        "max_output_bytes",
         "examples",
         "params_schema",
         "output_schema"
@@ -253,6 +285,16 @@
           "type": "string"
         },
         {
+          "const": "QUEUE_FULL",
+          "description": "The session is holding as many unanswered requests as it may hold.",
+          "type": "string"
+        },
+        {
+          "const": "OUTPUT_TOO_LARGE",
+          "description": "The API produced a response larger than the size it declares.",
+          "type": "string"
+        },
+        {
           "const": "HANDLER_TIMEOUT",
           "description": "The API did not finish within the `timeout_ms` it declares.",
           "type": "string"
@@ -265,6 +307,11 @@
         {
           "const": "ENVIRONMENT_UNAVAILABLE",
           "description": "SOLAR could not read something about its own process that it needs.",
+          "type": "string"
+        },
+        {
+          "const": "TOO_MANY_ABANDONED",
+          "description": "As many abandoned handlers are still alive as the process allows.",
           "type": "string"
         },
         {
@@ -288,6 +335,19 @@
           "type": "string"
         }
       ]
+    },
+    "RequestId": {
+      "anyOf": [
+        {
+          "description": "A numeric identifier, the usual choice of a programmatic caller.",
+          "type": "number"
+        },
+        {
+          "description": "A string identifier.",
+          "type": "string"
+        }
+      ],
+      "description": "The identifier of a request: a number or a string, never null.\n\nJSON-RPC 2.0 also allows `null`, which it treats as a notification. SOLAR does not\naccept notifications, so `null` is refused at the door and this type cannot hold it."
     },
     "SideEffect": {
       "description": "What an API touches outside of its own arguments.\n\n`None` is exclusive: an API that declares it must declare nothing else, and the registry\nrefuses a specification that claims both.",
@@ -407,6 +467,74 @@
   },
   "apis": [
     {
+      "description": "SOLAR accepts no notifications, so cancelling is an ordinary call rather than a special message. It is the one call a session answers the moment it is read, instead of in its turn: a cancellation that waited behind the call it is cancelling would be useless.\n\nCancelling is a request, not a command. A call that had not started is removed and answered at once with CANCELLED. A call that is running is told, and it ends with its own result or with CANCELLED, whichever it reaches first, because a handler checks its token at points where stopping is safe. Either way the cancelled call gets exactly one response.\n\nNothing here is an error. An id that finished before the cancellation arrived answers `already_finished`, and an id this session has never seen answers `unknown`, which is also what a call outside a session answers, since there is nothing there to cancel. A session remembers the ids of its last 1024 answered calls, so an older one is reported `unknown` rather than `already_finished`.",
+      "errors": [
+        {
+          "reason": "TYPE_MISMATCH",
+          "status": "INVALID_ARGUMENT"
+        }
+      ],
+      "examples": [
+        {
+          "description": "Cancelling an id no call in this session carries",
+          "match": "exact",
+          "name": "an_id_nothing_is_using",
+          "params": {
+            "id": 4321
+          },
+          "response": {
+            "id": "$any",
+            "outcome": "unknown"
+          }
+        }
+      ],
+      "idempotent": true,
+      "max_output_bytes": 8388608,
+      "name": "solar.cancel",
+      "output_schema": {
+        "description": "The output of `solar.cancel`.",
+        "properties": {
+          "id": {
+            "$ref": "#/$defs/RequestId",
+            "description": "The `id` that was asked about, echoed so an answer stands on its own."
+          },
+          "outcome": {
+            "$ref": "#/$defs/CancelOutcome",
+            "description": "What asking did. Nothing here is a failure: a call that had already finished, and\nan `id` nothing is using, are both answers rather than errors."
+          }
+        },
+        "required": [
+          "id",
+          "outcome"
+        ],
+        "title": "Output",
+        "type": "object"
+      },
+      "params_schema": {
+        "additionalProperties": false,
+        "description": "The parameters of `solar.cancel`.",
+        "properties": {
+          "id": {
+            "$ref": "#/$defs/RequestId",
+            "description": "The `id` of the call to cancel, exactly as it was sent: a number or a string."
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "Params",
+        "type": "object"
+      },
+      "side_effects": [
+        "none"
+      ],
+      "since": "0.2.0",
+      "stability": "experimental",
+      "summary": "Asks the call with this id to stop, and says what that did",
+      "timeout_ms": 1000,
+      "version": "1.0.0"
+    },
+    {
       "description": "The entry of a single API, exactly as it appears in the manifest: the summary and the description, the failures it declares, what it touches, whether it is idempotent, its timeout, the JSON Schemas of its parameters and of its output, and examples that really run.\n\nThis is the call to make before making any other call. An agent that reads the entry first does not have to guess a parameter name, and a name that does not exist comes back with the closest ones that do.",
       "errors": [
         {
@@ -433,6 +561,7 @@
         }
       ],
       "idempotent": true,
+      "max_output_bytes": 8388608,
       "name": "solar.describe",
       "output_schema": {
         "description": "One API as it appears in the manifest.",
@@ -458,6 +587,12 @@
           "idempotent": {
             "description": "Whether calling twice has the same effect as calling once.",
             "type": "boolean"
+          },
+          "max_output_bytes": {
+            "description": "The largest response this API may produce, in bytes of serialised `result.data`.\n\nSection 8.3 of the contract. [`DEFAULT_MAX_OUTPUT_BYTES`] is what an API declares\nunless it has a reason to declare less. Dispatch refuses a larger response with\n`RESOURCE_EXHAUSTED` / `OUTPUT_TOO_LARGE`, because a line nothing can buffer is\nnot a response: large data travels by pagination or by reference.",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
           },
           "name": {
             "description": "The method name.",
@@ -510,6 +645,7 @@
           "stability",
           "since",
           "timeout_ms",
+          "max_output_bytes",
           "examples",
           "params_schema",
           "output_schema"
@@ -580,6 +716,7 @@
         }
       ],
       "idempotent": true,
+      "max_output_bytes": 8388608,
       "name": "solar.manifest",
       "output_schema": {
         "description": "Every API this build answers to, with its schemas and its examples.",
@@ -679,6 +816,7 @@
         }
       ],
       "idempotent": true,
+      "max_output_bytes": 8388608,
       "name": "solar.ping",
       "output_schema": {
         "description": "The output of `solar.ping`.",
@@ -753,6 +891,7 @@
         }
       ],
       "idempotent": true,
+      "max_output_bytes": 8388608,
       "name": "solar.version",
       "output_schema": {
         "description": "The output of `solar.version`.",
@@ -799,7 +938,7 @@
       "version": "1.0.0"
     },
     {
-      "description": "What a caller needs in order to know which machine it is talking to: the operating system with its name and release, its family, the architecture, the width of a pointer, how many threads run at once, the current directory, the path of the binary that is answering, the temporary directory, and the two separators that differ between Windows and the rest, which is what makes a path in a response usable without guessing.\n\nThe release is read where each system keeps it, and never by starting a program: the os-release file on Linux, `SystemVersion.plist` on macOS, and `RtlGetVersion` on Windows, which reports the real version where the documented alternative reports a compatibility lie. When that source is missing or unreadable, `os_name`, `os_release` and `os_build` are null and the call warns with OS_RELEASE_UNAVAILABLE saying which source was tried. Nothing is guessed, and the call still succeeds.\n\nNothing personal is reported beyond what those paths necessarily contain: a home directory usually holds a user name, and that is the only such thing here. No environment variables, no network names, no serial numbers.",
+      "description": "What a caller needs in order to know which machine it is talking to: the operating system with its name and release, its family, the architecture, the width of a pointer, how many threads run at once, the current directory, the path of the binary that is answering, the temporary directory, and the two separators that differ between Windows and the rest, which is what makes a path in a response usable without guessing. It also reports `abandoned_workers`, the handlers that overran their budget and are still running, which is zero in a healthy process.\n\nThe release is read where each system keeps it, and never by starting a program: the os-release file on Linux, `SystemVersion.plist` on macOS, and `RtlGetVersion` on Windows, which reports the real version where the documented alternative reports a compatibility lie. When that source is missing or unreadable, `os_name`, `os_release` and `os_build` are null and the call warns with OS_RELEASE_UNAVAILABLE saying which source was tried. Nothing is guessed, and the call still succeeds.\n\nNothing personal is reported beyond what those paths necessarily contain: a home directory usually holds a user name, and that is the only such thing here. No environment variables, no network names, no serial numbers.",
       "errors": [
         {
           "reason": "ENVIRONMENT_UNAVAILABLE",
@@ -813,6 +952,7 @@
           "name": "plain",
           "params": {},
           "response": {
+            "abandoned_workers": "$any",
             "arch": "$any",
             "cpu_count": "$any",
             "current_dir": "$any",
@@ -830,10 +970,17 @@
         }
       ],
       "idempotent": true,
+      "max_output_bytes": 8388608,
       "name": "system.info",
       "output_schema": {
         "description": "The output of `system.info`.",
         "properties": {
+          "abandoned_workers": {
+            "description": "How many handlers overran their budget and are still running.\n\nA handler that overruns is abandoned rather than killed, so it keeps its thread\nuntil it finishes on its own. A healthy process reports zero. When this reaches\nthe cap of section 10 of the contract, new calls are refused with\n`TOO_MANY_ABANDONED` until some of them finish.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
           "arch": {
             "description": "The processor architecture: `x86_64`, `aarch64`, and so on.",
             "type": "string"
@@ -912,7 +1059,8 @@
           "executable",
           "temp_dir",
           "path_separator",
-          "path_list_separator"
+          "path_list_separator",
+          "abandoned_workers"
         ],
         "title": "Output",
         "type": "object"
@@ -930,7 +1078,7 @@
       "stability": "experimental",
       "summary": "Reports the operating system, the processor and the process",
       "timeout_ms": 2000,
-      "version": "1.1.0"
+      "version": "1.2.0"
     }
   ],
   "protocol": "solar/1",

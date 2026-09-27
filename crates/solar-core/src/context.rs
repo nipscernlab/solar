@@ -7,6 +7,7 @@
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
+use crate::cancel::Cancellation;
 use crate::protocol::RequestId;
 use crate::registry::Registry;
 use crate::warning::{Warning, WarningCode};
@@ -23,6 +24,8 @@ pub struct Context {
     budget: Duration,
     registry: Arc<Registry>,
     warnings: Mutex<Vec<Warning>>,
+    cancellation: Cancellation,
+    session: Option<Arc<crate::session::SessionState>>,
 }
 
 impl Context {
@@ -41,7 +44,20 @@ impl Context {
             budget,
             registry,
             warnings: Mutex::new(Vec::new()),
+            cancellation: Cancellation::new(),
+            session: None,
         }
+    }
+
+    /// The same context, watching a token somebody else can cancel.
+    ///
+    /// Dispatch uses this inside a session, where `solar.cancel` holds the other handle.
+    /// A context built with [`Context::new`] watches a token nobody else holds, so
+    /// [`Context::is_cancelled`] is always false, which is what a one-shot call wants.
+    #[must_use]
+    pub fn cancellable(mut self, cancellation: Cancellation) -> Self {
+        self.cancellation = cancellation;
+        self
     }
 
     /// The identifier of the request, echoed into `meta.request_id`.
@@ -81,6 +97,44 @@ impl Context {
     #[must_use]
     pub const fn budget(&self) -> Duration {
         self.budget
+    }
+
+    /// The same context, able to see the session this call is running in.
+    ///
+    /// Only `solar.cancel` needs this, and only inside a session. A call made by
+    /// `solar call`, which is one call and then exit, has no session to see.
+    #[must_use]
+    pub fn in_session(mut self, session: Arc<crate::session::SessionState>) -> Self {
+        self.session = Some(session);
+        self
+    }
+
+    /// The session this call is running in, when it is running in one.
+    #[must_use]
+    pub fn session(&self) -> Option<&Arc<crate::session::SessionState>> {
+        self.session.as_ref()
+    }
+
+    /// Whether the caller has asked for this call to stop.
+    ///
+    /// A handler checks this at points where stopping is safe, and returns
+    /// [`Context::cancelled`] when it is true. A handler that never checks is not a
+    /// special case: section 9.4 of the contract says what happens to it.
+    #[must_use]
+    pub fn is_cancelled(&self) -> bool {
+        self.cancellation.is_cancelled()
+    }
+
+    /// The token itself, for a handler that hands it to something it is waiting on.
+    #[must_use]
+    pub const fn cancellation(&self) -> &Cancellation {
+        &self.cancellation
+    }
+
+    /// The error a handler returns when it stops because it was asked to.
+    #[must_use]
+    pub fn cancelled(&self) -> crate::error::SolarError {
+        Cancellation::as_error("a call the handler stopped when it was asked to")
     }
 
     /// Records something the caller should know about a call that still succeeded.
@@ -135,6 +189,27 @@ mod tests {
         let ctx = context(Duration::ZERO);
         assert_eq!(ctx.remaining(), Duration::ZERO);
         assert_eq!(ctx.budget(), Duration::ZERO);
+    }
+
+    #[test]
+    fn a_context_nobody_holds_the_token_of_is_never_cancelled() {
+        let ctx = context(Duration::from_millis(500));
+        assert!(!ctx.is_cancelled());
+        // The handle the context keeps is the only one, so nothing can cancel it.
+        assert!(!ctx.cancellation().is_cancelled());
+    }
+
+    #[test]
+    fn a_cancellable_context_sees_the_cancellation() {
+        let token = Cancellation::new();
+        let ctx = context(Duration::from_millis(500)).cancellable(token.clone());
+        assert!(!ctx.is_cancelled());
+        token.cancel();
+        assert!(ctx.is_cancelled());
+        assert_eq!(
+            ctx.cancelled().reason(),
+            crate::reason::Reason::CallCancelled
+        );
     }
 
     #[test]

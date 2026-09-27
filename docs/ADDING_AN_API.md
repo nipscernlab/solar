@@ -54,11 +54,23 @@ an agent reads.
 | `stability` | `Experimental` while SOLAR is below 1.0.0. A test enforces it. |
 | `since` | The SOLAR version this API first appears in, not the API's own version. |
 | `timeout_ms` | The budget of one call. Dispatch enforces it. Be generous but finite. |
+| `max_output_bytes` | The largest response this API may produce. `DEFAULT_MAX_OUTPUT_BYTES` unless there is a reason for less. Dispatch enforces it. See below. |
 | `examples` | At least one, and they are tests. See below. |
 
-**`call()`** does the work. It gets a `&Context`, which knows how much time is left and
-holds the registry, and it returns either the output or a `SolarError` whose reason is one
-of the ones declared above.
+**`call()`** does the work. It gets a `&Context`, which knows how much time is left, holds
+the registry and carries the cancellation token, and it returns either the output or a
+`SolarError` whose reason is one of the ones declared above.
+
+**A handler that can take a while checks `ctx.is_cancelled()`** at points where stopping
+is safe, and returns `ctx.cancelled()` when it is true. That is all cancellation asks of an
+API. A handler that never checks is not a special case: it runs to its end, or past its
+budget, and is then abandoned exactly as section 10 of the contract says.
+
+**Large data travels by pagination or by reference, never in one response.** A response is
+one line on a pipe: a caller that receives a line of unbounded size cannot read it, and
+`max_output_bytes` is what stops one from being written. An API that returns a list takes a
+page size and a cursor; an API that produces a file returns its path. If an API is
+approaching its limit, the answer is to change the API, not to raise the number.
 
 ## 4. Write examples that are true
 
@@ -139,3 +151,4 @@ All three run in CI on Linux, Windows and macOS.
 - Never write a value in an example that you have not seen.
 - Never change an existing API's parameters or output without a major bump of that API's
   own version.
+- Never return a whole data set in one response because it happens to fit today. Paginate.

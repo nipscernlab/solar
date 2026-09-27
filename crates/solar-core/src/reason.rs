@@ -71,12 +71,18 @@ reasons! {
         "A request line went past the 16 MiB limit.";
     BatchTooLarge => "BATCH_TOO_LARGE", Status::ResourceExhausted,
         "A batch holds more elements than one line may carry.";
+    QueueFull => "QUEUE_FULL", Status::ResourceExhausted,
+        "The session is holding as many unanswered requests as it may hold.";
+    OutputTooLarge => "OUTPUT_TOO_LARGE", Status::ResourceExhausted,
+        "The API produced a response larger than the size it declares.";
     HandlerTimeout => "HANDLER_TIMEOUT", Status::DeadlineExceeded,
         "The API did not finish within the `timeout_ms` it declares.";
     ThreadSpawnFailed => "THREAD_SPAWN_FAILED", Status::Unavailable,
         "SOLAR could not start the worker thread a call runs on.";
     EnvironmentUnavailable => "ENVIRONMENT_UNAVAILABLE", Status::Unavailable,
         "SOLAR could not read something about its own process that it needs.";
+    TooManyAbandoned => "TOO_MANY_ABANDONED", Status::Unavailable,
+        "As many abandoned handlers are still alive as the process allows.";
     HandlerPanic => "HANDLER_PANIC", Status::Internal,
         "An API panicked, and dispatch caught the unwind.";
     SerializationFailed => "SERIALIZATION_FAILED", Status::Internal,
