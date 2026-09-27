@@ -67,8 +67,9 @@ below.
 The whole of the two library crates is 538 mutants, and measuring it on this laptop takes
 hours, because each mutant rebuilds and reruns the suite. That is the weekly job's work,
 and the first run that will report an honest number is the one after finding 8 below,
-since the configuration was not being read before it, which is finding 8. The number to expect is lower than
-the coverage: coverage says 91% of lines ran, and mutation asks the harder question.
+since the configuration was not being read before that. The number to expect is lower
+than the coverage: coverage says 91% of lines ran, and mutation asks the harder
+question.
 
 ## What the new checks found, on the day they were written
 
