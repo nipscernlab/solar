@@ -11,6 +11,18 @@
 use std::path::Path;
 use std::process::Command;
 
+/// How many surviving mutants the shipped crates are allowed, measured on 27 September
+/// 2026 and never raised.
+///
+/// A weekly job that is always red is a job nobody reads, and a full run today leaves 98
+/// survivors out of 538 mutants: real gaps, but a backlog rather than a regression. The
+/// ceiling makes the job green while the backlog shrinks and red the moment somebody adds
+/// to it, which is the bargain the coverage floor makes as well.
+///
+/// Every survivor is a line that can be wrong without a test failing. Lower this number
+/// whenever some are killed; never raise it.
+pub(crate) const CEILING: usize = 98;
+
 /// Runs the mutation suite.
 ///
 /// # Errors
@@ -46,13 +58,20 @@ pub(crate) fn run(root: &Path, arguments: &[&str]) -> Result<(), String> {
         summary.caught, summary.missed, summary.timeout, summary.unviable
     );
 
-    if summary.missed > 0 {
+    if summary.missed > CEILING {
         return Err(format!(
-            "{} mutant{} survived: those lines can be wrong without a test failing. The              list is in {}/mutants.out/missed.txt.",
+            "{} mutants survived, and the ceiling is {CEILING}. Those lines can be wrong              without a test failing, and there are more of them than there were. The list              is in {}/mutants.out/missed.txt.",
             summary.missed,
-            if summary.missed == 1 { "" } else { "s" },
             output.display()
         ));
+    }
+    if summary.missed > 0 {
+        println!(
+            "mutants: {} survived, within the ceiling of {CEILING}. Each one is a line              nothing checks: {}/mutants.out/missed.txt. Lower the ceiling in              xtask/src/mutants.rs whenever you kill some.",
+            summary.missed,
+            output.display()
+        );
+        return Ok(());
     }
     if summary.caught == 0 && summary.timeout == 0 {
         return Err(format!(

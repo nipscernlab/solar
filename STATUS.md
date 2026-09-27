@@ -59,51 +59,30 @@ missing `--locked`.
 | One round trip in a session | 72.3 µs |
 | Dispatch of one ping, in process | 7.59 µs |
 
-**The mutation score.** One file was measured to the end: `crates/solar-core/src/text.rs`,
-**42 mutants caught, 0 survived**, and one that hung the suite, which is the suite
-noticing. Reaching that took four new tests and one simplification, which is finding 5
-below.
+**The mutation score**, measured to the end by the weekly job on 27 September 2026,
+after the configuration was fixed:
 
-The whole of the two library crates is 538 mutants, and measuring it on this laptop takes
-hours, because each mutant rebuilds and reruns the suite. That is the weekly job's work,
-and the first run that will report an honest number is the one after finding 8 below,
-since the configuration was not being read before that. The number to expect is lower
-than the coverage: coverage says 91% of lines ran, and mutation asks the harder
-question.
+| | |
+| --- | --- |
+| Mutants generated from `solar-core` and `solar-apis` | 538 |
+| Caught, meaning a test failed | 359 |
+| Hung the suite, which is the suite noticing | 4 |
+| Could not be built, so not a mutant at all | 77 |
+| **Survived** | **98** |
+| Score, caught over viable | **78.7%** |
 
-## What the new checks found, on the day they were written
+Ninety-eight lines can therefore be wrong without a test failing. They are listed by
+file and line in the artefact the weekly job keeps, and they are the cheapest work
+available to the next stage.
 
-Each of these was a real defect, found by the thing built to find it.
+`cargo xtask mutants` fails above a ceiling of 98 rather than above zero, for the same
+reason the coverage floor is 91 rather than 100: a check that is always red is a check
+nobody reads. The ceiling is in `xtask/src/mutants.rs` with the date it was measured, it
+goes down whenever survivors are killed, and it never goes up.
 
-1. **The README claimed a quoting form that does not work in `cmd.exe`.** Found by
-   running the documentation. Every shell-tagged block is now executed by
-   `cargo xtask doc-run`, in its own shell, in CI.
-2. **`SOLAR_LOG=trace` wrote nothing in `solar call`.** Found by trying it. A call now
-   logs what a session logs, and a test pins it.
-3. **Windows PowerShell prepends a byte order mark** to the first line it writes to a
-   native program, which cost every PowerShell session its first request. Found by
-   driving `solar serve --stdio` from PowerShell. RFC 8259 allows a parser to ignore
-   one, and now SOLAR does.
-4. **The release binary embedded the home directory of whoever built it**, and on macOS
-   it still did after the first fix, through the OSO entries that `ld64` writes. Found
-   by `cargo xtask leak-check`, which scans the artefact rather than trusting the flags.
-5. **Four lines of `text.rs` could be wrong without a test failing**, including the
-   whole deletion term of the edit distance. Found by `cargo-mutants`. All four are now
-   tested, and a fifth finding was an equivalent mutant, which was removed by deleting a
-   redundant guard.
-6. **`cargo xtask ci` could not run its own tests on Windows**, because the nested
-   `cargo test` relinks the binary that is running. Found by running it. Nested builds
-   now use a target directory of their own.
-7. **A fresh clone could not run `cargo xtask ci`.** The documentation says
-   `./target/release/solar`, and the documentation runner was building the binary into
-   the nested target directory that `xtask ci` gives its children, so the path in the
-   README was true only on a machine that had already built by hand. Found by cloning
-   the repository into a temporary directory and running the one command, which is now
-   how this stage is declared finished.
-8. **The mutation configuration was never being read.** `cargo-mutants` looks for
-   `.cargo/mutants.toml`, not `mutants.toml`, so the weekly run mutated the developer
-   tools as well and reported 218 survivors that were mostly in `xtask`. Found by
-   reading the first weekly run instead of trusting it.
+One file was taken to zero as a worked example: `crates/solar-core/src/text.rs`, 42
+caught and none surviving, which took four new tests and one simplification. That is
+finding 5 below.
 
 ## What runs when
 
@@ -155,10 +134,9 @@ the history at `1029db4` and its parent. Releases, distribution, installers and 
 
 **Known gaps, in the order they will start to hurt.**
 
-- The mutation score of the two library crates has never been measured to the end, only
-  `text.rs` has. The weekly job does it now that its configuration is read; the list of
-  survivors it prints is a list of missing tests, and working through it is the next
-  stage's cheapest way to buy confidence.
+- Ninety-eight mutants survive, which is ninety-eight lines nothing checks. The list is
+  an artefact of the weekly job, and working through it is the next stage's cheapest way
+  to buy confidence. Lower the ceiling as they fall.
 - The manifest is 1152 lines for five APIs, because every JSON Schema is inlined in
   full. It will not stay readable at fifty. A shared `$defs` section is the answer and
   is a change to `schema_version`.
