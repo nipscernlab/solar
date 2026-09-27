@@ -6,10 +6,7 @@
 use std::process::Command;
 
 fn main() {
-    let git_dir = std::path::Path::new("../../.git");
-    if git_dir.join("HEAD").is_file() {
-        println!("cargo::rerun-if-changed=../../.git/HEAD");
-    }
+    watch_git(std::path::Path::new("../../.git"));
     println!("cargo::rerun-if-env-changed=PROFILE");
 
     let commit = git(&["rev-parse", "HEAD"]).unwrap_or_else(|| "unknown".to_owned());
@@ -57,4 +54,29 @@ fn git(args: &[&str]) -> Option<String> {
         return None;
     }
     Some(trimmed)
+}
+
+/// Asks cargo to rebuild when the commit changes.
+///
+/// Watching `HEAD` alone is not enough: committing on a branch leaves `HEAD` untouched and
+/// moves the ref it points at, so the ref file is watched as well.
+fn watch_git(git_dir: &std::path::Path) {
+    let head = git_dir.join("HEAD");
+    if !head.is_file() {
+        return;
+    }
+    println!("cargo::rerun-if-changed={}", head.display());
+
+    if let Ok(text) = std::fs::read_to_string(&head)
+        && let Some(reference) = text.trim().strip_prefix("ref: ")
+    {
+        let path = git_dir.join(reference);
+        if path.is_file() {
+            println!("cargo::rerun-if-changed={}", path.display());
+        }
+        let packed = git_dir.join("packed-refs");
+        if packed.is_file() {
+            println!("cargo::rerun-if-changed={}", packed.display());
+        }
+    }
 }

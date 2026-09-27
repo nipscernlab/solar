@@ -194,7 +194,19 @@ impl RegistryBuilder {
     #[must_use]
     pub fn register<A: Api>(mut self) -> Self {
         let spec = A::spec();
-        let first_example = spec.examples.first().map(|example| example.params.clone());
+        // The example a hint shows is the first one that actually passes something, so
+        // that "a call that works" is worth reading even when the first example is bare.
+        let first_example = spec
+            .examples
+            .iter()
+            .find(|example| {
+                example
+                    .params
+                    .as_object()
+                    .is_some_and(|members| !members.is_empty())
+            })
+            .or_else(|| spec.examples.first())
+            .map(|example| example.params.clone());
         self.entries.push(ApiEntry {
             name: A::NAME,
             version: A::VERSION,

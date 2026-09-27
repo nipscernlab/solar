@@ -46,10 +46,22 @@ pub fn deserialize<T: DeserializeOwned>(
     }
 
     let received = params.pointer(&pointer).map_or(Value::Null, brief);
-    let expected = expected_from_message
-        .map(str::to_owned)
-        .or_else(|| expected_from_schema(schema, &pointer))
-        .unwrap_or_else(|| "a value the schema accepts".to_owned());
+    let expected = match reason {
+        // The member is not in the schema, so the schema cannot say what belongs there.
+        // What helps instead is the list of members that would have been accepted.
+        Reason::UnknownField => {
+            let accepted = accepted_members(schema);
+            if accepted.is_empty() {
+                "no parameters at all".to_owned()
+            } else {
+                format!("one of: {}", accepted.join(", "))
+            }
+        }
+        _ => expected_from_message
+            .map(str::to_owned)
+            .or_else(|| expected_from_schema(schema, &pointer))
+            .unwrap_or_else(|| "a value the schema accepts".to_owned()),
+    };
 
     let mut detail = ErrorDetail::new(Status::InvalidArgument)
         .field(if pointer.is_empty() {
@@ -303,6 +315,10 @@ mod tests {
         assert_eq!(error.reason(), Reason::UnknownField);
         let detail = &error.details()[0];
         assert_eq!(detail.field.as_deref(), Some("/dept"));
+        assert_eq!(
+            detail.expected.as_deref(),
+            Some("one of: api, depth, tools")
+        );
         let hint = detail.hint.as_deref().unwrap();
         assert!(hint.contains("Did you mean depth?"), "{hint}");
     }

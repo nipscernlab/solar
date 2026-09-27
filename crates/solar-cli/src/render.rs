@@ -1,0 +1,192 @@
+//! Laying out an answer for a person.
+//!
+//! Nothing here decides anything: every value printed came from a real response, and the
+//! only job of this module is to put it on the screen in an order a person reads. The JSON
+//! is always one `solar call` away when the layout hides something.
+
+use std::io::Write;
+
+use serde_json::Value;
+
+/// The width of the name column of `solar list`.
+const NAME_WIDTH: usize = 18;
+
+/// `solar list`: one line per API, widest first.
+pub(crate) fn list<W: Write>(out: &mut W, manifest: &Value) -> std::io::Result<()> {
+    let apis = manifest
+        .get("apis")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+
+    writeln!(
+        out,
+        "SOLAR {} speaks {}, and answers to {} {}:",
+        text(manifest, "solar_version"),
+        text(manifest, "protocol"),
+        apis.len(),
+        if apis.len() == 1 { "API" } else { "APIs" }
+    )?;
+    writeln!(out)?;
+
+    for api in &apis {
+        writeln!(
+            out,
+            "  {:<NAME_WIDTH$}  {:<7}  {}",
+            text(api, "name"),
+            text(api, "version"),
+            text(api, "summary")
+        )?;
+    }
+
+    writeln!(out)?;
+    writeln!(
+        out,
+        "  solar describe <method>   everything about one of them"
+    )?;
+    writeln!(
+        out,
+        "  solar call <method> '{{}}'  the whole envelope, as an agent sees it"
+    )
+}
+
+/// `solar describe`: everything about one API, in the order a caller needs it.
+pub(crate) fn describe<W: Write>(out: &mut W, api: &Value) -> std::io::Result<()> {
+    writeln!(out, "{} {}", text(api, "name"), text(api, "version"))?;
+    writeln!(out, "{}", text(api, "summary"))?;
+    writeln!(out)?;
+
+    for paragraph in text(api, "description").split("\n\n") {
+        writeln!(out, "{paragraph}")?;
+        writeln!(out)?;
+    }
+
+    let effects = api
+        .get("side_effects")
+        .and_then(Value::as_array)
+        .map(|values| {
+            values
+                .iter()
+                .filter_map(Value::as_str)
+                .collect::<Vec<&str>>()
+                .join(", ")
+        })
+        .unwrap_or_else(|| "unknown".to_owned());
+    writeln!(
+        out,
+        "stability {}   since {}   timeout {} ms   idempotent {}   touches {effects}",
+        text(api, "stability"),
+        text(api, "since"),
+        api.get("timeout_ms")
+            .map_or("?".to_owned(), ToString::to_string),
+        api.get("idempotent")
+            .map_or("?".to_owned(), ToString::to_string)
+    )?;
+
+    writeln!(out)?;
+    writeln!(out, "parameters")?;
+    parameters(out, api.get("params_schema").unwrap_or(&Value::Null))?;
+
+    if let Some(errors) = api.get("errors").and_then(Value::as_array)
+        && !errors.is_empty()
+    {
+        writeln!(out)?;
+        writeln!(out, "may fail with")?;
+        for failure in errors {
+            writeln!(
+                out,
+                "  {} / {}",
+                text(failure, "status"),
+                text(failure, "reason")
+            )?;
+        }
+    }
+
+    if let Some(examples) = api.get("examples").and_then(Value::as_array) {
+        writeln!(out)?;
+        writeln!(out, "examples")?;
+        for example in examples {
+            writeln!(
+                out,
+                "  {}: {}",
+                text(example, "name"),
+                text(example, "description")
+            )?;
+            writeln!(
+                out,
+                "    solar call {} '{}'",
+                text(api, "name"),
+                example
+                    .get("params")
+                    .map_or_else(|| "{}".to_owned(), ToString::to_string)
+            )?;
+        }
+    }
+    Ok(())
+}
+
+/// The members of a parameter schema, one per line, required ones marked.
+fn parameters<W: Write>(out: &mut W, schema: &Value) -> std::io::Result<()> {
+    let properties = schema.get("properties").and_then(Value::as_object);
+    let required: Vec<&str> = schema
+        .get("required")
+        .and_then(Value::as_array)
+        .map(|values| values.iter().filter_map(Value::as_str).collect())
+        .unwrap_or_default();
+
+    match properties {
+        None => writeln!(out, "  none"),
+        Some(members) if members.is_empty() => writeln!(out, "  none"),
+        Some(members) => {
+            for (name, member) in members {
+                let kind = type_of(member);
+                let mark = if required.contains(&name.as_str()) {
+                    "required"
+                } else {
+                    "optional"
+                };
+                writeln!(
+                    out,
+                    "  {name:<12} {kind:<18} {mark}  {}",
+                    text(member, "description")
+                )?;
+            }
+            Ok(())
+        }
+    }
+}
+
+/// `solar version`: the three versions and the build, one per line.
+pub(crate) fn version<W: Write>(out: &mut W, data: &Value) -> std::io::Result<()> {
+    writeln!(out, "solar          {}", text(data, "solar_version"))?;
+    writeln!(out, "protocol       {}", text(data, "protocol"))?;
+    writeln!(
+        out,
+        "manifest       {}",
+        text(data, "manifest_schema_version")
+    )?;
+    let build = data.get("build").cloned().unwrap_or(Value::Null);
+    writeln!(out, "commit         {}", text(&build, "git_commit_short"))?;
+    writeln!(out, "dirty          {}", text(&build, "git_dirty"))?;
+    writeln!(out, "profile        {}", text(&build, "profile"))?;
+    writeln!(out, "target         {}", text(&build, "target"))?;
+    writeln!(out, "compiler       {}", text(&build, "rustc_version"))
+}
+
+/// The type a schema declares, as a caller would say it.
+fn type_of(member: &Value) -> String {
+    match member.get("type") {
+        Some(Value::String(name)) => name.clone(),
+        Some(Value::Array(names)) => names
+            .iter()
+            .filter_map(Value::as_str)
+            .collect::<Vec<&str>>()
+            .join(" or "),
+        _ => "value".to_owned(),
+    }
+}
+
+/// A member of an object as text, or a dash when it is absent.
+fn text<'a>(value: &'a Value, member: &str) -> &'a str {
+    value.get(member).and_then(Value::as_str).unwrap_or("-")
+}

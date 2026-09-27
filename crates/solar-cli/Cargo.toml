@@ -1,0 +1,25 @@
+[package]
+name = "solar-cli"
+description = "The solar binary: the debugger of SOLAR and one of the interfaces of SAPHO"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish = false
+
+[[bin]]
+name = "solar"
+path = "src/main.rs"
+
+[dependencies]
+solar-apis.workspace = true
+solar-core.workspace = true
+
+clap.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/solar-core", "crates/solar-apis", "xtask"]
+members = ["crates/solar-core", "crates/solar-apis", "crates/solar-cli", "xtask"]
 
 [workspace.package]
 version = "0.1.0"
