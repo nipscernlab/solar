@@ -1,0 +1,20 @@
+[package]
+name = "solar-core"
+description = "Protocol, errors, metadata, API template, registry and dispatch for SOLAR"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish = false
+
+[dependencies]
+schemars.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_path_to_error.workspace = true
+
+[lints]
+workspace = true
