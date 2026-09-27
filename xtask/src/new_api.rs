@@ -235,7 +235,7 @@ use serde_json::{Value, json};
 use solar_core::api::Api as _;
 
 /// The response to one call of this API, as JSON, through the real dispatcher.
-fn call(params: Value) -> Value {
+fn call(params: &Value) -> Value {
     let request = json!({
         "jsonrpc": "2.0",
         "id": 1,
@@ -248,7 +248,7 @@ fn call(params: Value) -> Value {
 
 #[test]
 fn it_answers() {
-    let answered = call(json!({}));
+    let answered = call(&json!({}));
     assert!(answered.get("result").is_some(), "{answered}");
 }
 

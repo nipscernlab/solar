@@ -96,7 +96,21 @@ If you need a reason that does not exist yet, add it to `Reason` in
 `crates/solar-core/src/reason.rs` **and** to `docs/ERRORS.md`, under the status it belongs
 to. `solar-core/tests/docs.rs` fails until both are there.
 
-## 6. Regenerate the manifest
+## 6. Review the snapshots that changed
+
+Adding an API changes two snapshots on purpose: the manifest, and the output of
+`solar list`. `cargo nextest run` reports them as failures, which is the point, because a
+snapshot is only worth having if a change to it is looked at.
+
+```bash no-run
+# no-run: needs cargo-insta, and the review is a person reading a diff
+cargo insta review
+```
+
+Read the diff. It should show your API appearing and nothing else. If anything else
+moved, that is the snapshot earning its keep: find out why before accepting.
+
+## 7. Regenerate the manifest
 
 ```bash
 cargo xtask manifest
@@ -105,15 +119,14 @@ cargo xtask manifest
 Commit the result. `cargo xtask manifest --check` is what CI runs, and it fails when the
 versioned file is not what the generator produces.
 
-## 7. Before you push
+## 8. Before you push
 
 ```bash no-run
-# no-run: each line is already its own CI step
-cargo fmt --all
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace
+# no-run: it is the whole pipeline, and CI runs the same steps as its own
+cargo xtask ci
 ```
 
+That is what CI runs, in the same order, with the same flags. It takes about a minute.
 All three run in CI on Linux, Windows and macOS.
 
 ## What never to do
