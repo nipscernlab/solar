@@ -200,7 +200,7 @@ mod tests {
         // The mutation that replaces + with * in the substitution cost survives unless a
         // case distinguishes them: with * a match would cost zero and a substitution
         // would cost zero too, collapsing every distance that is all substitutions.
-        assert_eq!(levenshtein("abc", "abd"), 1, "one substitution at the end");
+        assert_eq!(levenshtein("xyz", "xyq"), 1, "one substitution at the end");
         assert_eq!(
             levenshtein("abc", "xyz"),
             3,
@@ -208,7 +208,7 @@ mod tests {
         );
         assert_eq!(levenshtein("aaa", "aaa"), 0);
         assert_eq!(
-            levenshtein("ab", "ba"),
+            levenshtein("xy", "yx"),
             2,
             "a swap is two substitutions here"
         );
