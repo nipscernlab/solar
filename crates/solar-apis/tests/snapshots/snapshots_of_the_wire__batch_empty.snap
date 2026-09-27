@@ -1,18 +1,19 @@
 ---
 source: crates/solar-apis/tests/snapshots_of_the_wire.rs
-expression: "answer(& r#\"[{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"solar.ping\"}]\"#.to_owned())"
+assertion_line: 80
+expression: "answer(& r#\"[]\"#)"
 ---
 {
   "error": {
-    "code": -32007,
+    "code": -32600,
     "data": {
       "details": [
         {
-          "docs": "docs/ERRORS.md#unimplemented",
-          "expected": "a single JSON object",
+          "docs": "docs/ERRORS.md#invalid_argument",
+          "expected": "a batch with at least one request in it",
           "field": null,
-          "hint": "Send one request per line. `solar serve --stdio` keeps the session open and answers each line in order.",
-          "received": "array"
+          "hint": "Send the requests, or send nothing at all.",
+          "received": []
         }
       ],
       "meta": {
@@ -26,10 +27,10 @@ expression: "answer(& r#\"[{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"solar.ping
         "solar_version": "[version]",
         "started_at": "[timestamp]"
       },
-      "reason": "BATCH_NOT_SUPPORTED",
-      "status": "UNIMPLEMENTED"
+      "reason": "BATCH_EMPTY",
+      "status": "INVALID_ARGUMENT"
     },
-    "message": "Batch requests are not implemented in solar/1."
+    "message": "The request is an empty batch, which asks for nothing."
   },
   "id": null,
   "jsonrpc": "2.0"

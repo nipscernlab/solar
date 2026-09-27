@@ -1,0 +1,25 @@
+{
+  "name": "batch_answers_a_bad_element_without_stopping",
+  "description": "An element that is refused gets its own response inside the array, and the elements after it still run",
+  "request": [
+    {"jsonrpc": "2.0", "method": "solar.ping"},
+    {"jsonrpc": "2.0", "id": 2, "method": "solar.ping"}
+  ],
+  "response": [
+    {
+      "jsonrpc": "2.0",
+      "id": null,
+      "error": {
+        "code": -32600,
+        "message": "$any",
+        "data": {"status": "INVALID_ARGUMENT", "reason": "NOTIFICATION_NOT_SUPPORTED", "details": "$any", "meta": "$any"}
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "result": {"data": {"pong": true, "echo": null, "received_at": "$any"}, "meta": "$any", "warnings": []}
+    }
+  ],
+  "match": "subset"
+}

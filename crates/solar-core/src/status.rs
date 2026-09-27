@@ -37,13 +37,15 @@ pub enum Status {
     Unimplemented,
     /// A bug in SOLAR. A panic reaches the caller as this.
     Internal,
+    /// The caller asked for the call to stop, and it stopped.
+    Cancelled,
     /// A failure that could not be classified.
     Unknown,
 }
 
 impl Status {
     /// Every status, in the order they appear in the contract.
-    pub const ALL: [Status; 11] = [
+    pub const ALL: [Status; 12] = [
         Status::InvalidArgument,
         Status::NotFound,
         Status::AlreadyExists,
@@ -54,6 +56,7 @@ impl Status {
         Status::Unavailable,
         Status::Unimplemented,
         Status::Internal,
+        Status::Cancelled,
         Status::Unknown,
     ];
 
@@ -71,6 +74,7 @@ impl Status {
             Status::Unavailable => "UNAVAILABLE",
             Status::Unimplemented => "UNIMPLEMENTED",
             Status::Internal => "INTERNAL",
+            Status::Cancelled => "CANCELLED",
             Status::Unknown => "UNKNOWN",
         }
     }
@@ -89,6 +93,7 @@ impl Status {
             Status::Unavailable => -32006,
             Status::Unimplemented => -32007,
             Status::Internal => -32603,
+            Status::Cancelled => -32008,
             Status::Unknown => -32099,
         }
     }
@@ -99,7 +104,7 @@ impl Status {
         format!("docs/ERRORS.md#{}", self.as_str().to_lowercase())
     }
 
-    /// The process exit code `solar call` uses for this status, per section 12.
+    /// The process exit code `solar call` uses for this status, per section 13.
     #[must_use]
     pub const fn exit_code(self) -> u8 {
         match self {
@@ -114,6 +119,7 @@ impl Status {
             Status::Unimplemented => 10,
             Status::Internal => 11,
             Status::Unknown => 12,
+            Status::Cancelled => 13,
         }
     }
 

@@ -1,0 +1,15 @@
+{
+  "name": "batch_empty_is_refused",
+  "description": "An empty array asks for nothing and gets a single Invalid Request, not an array",
+  "request_line": "[]",
+  "response": {
+    "jsonrpc": "2.0",
+    "id": null,
+    "error": {
+      "code": -32600,
+      "message": "$any",
+      "data": {"status": "INVALID_ARGUMENT", "reason": "BATCH_EMPTY", "details": "$any", "meta": "$any"}
+    }
+  },
+  "match": "subset"
+}

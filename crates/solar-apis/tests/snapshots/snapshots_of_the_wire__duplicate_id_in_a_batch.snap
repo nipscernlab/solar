@@ -1,0 +1,37 @@
+---
+source: crates/solar-apis/tests/snapshots_of_the_wire.rs
+assertion_line: 88
+expression: "answer(&\nr#\"[{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"solar.ping\"},{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"solar.version\"}]\"#)"
+---
+{
+  "error": {
+    "code": -32602,
+    "data": {
+      "details": [
+        {
+          "docs": "docs/ERRORS.md#invalid_argument",
+          "expected": "an id that appears once in the batch",
+          "field": "id",
+          "hint": "An id is how an answer is matched to its question, so two answers carrying the same one could not be told apart.",
+          "received": 7
+        }
+      ],
+      "meta": {
+        "api_version": null,
+        "arch": "[arch]",
+        "duration_us": "[duration]",
+        "method": null,
+        "os": "[os]",
+        "protocol": "solar/1",
+        "request_id": null,
+        "solar_version": "[version]",
+        "started_at": "[timestamp]"
+      },
+      "reason": "DUPLICATE_ID",
+      "status": "INVALID_ARGUMENT"
+    },
+    "message": "Two requests in the batch carry the id 7."
+  },
+  "id": null,
+  "jsonrpc": "2.0"
+}

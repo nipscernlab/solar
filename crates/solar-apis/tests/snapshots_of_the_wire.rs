@@ -27,10 +27,27 @@ fn dispatcher() -> Dispatcher {
     solar_apis::dispatcher()
 }
 
-/// The response to one line, as JSON, ready to snapshot.
+/// The answer to one line, as JSON, ready to snapshot. A batch answers with an array.
 fn answer(line: &str) -> Value {
-    let response = dispatcher().handle_line(line);
-    serde_json::from_str(&response.to_line()).expect("a response is JSON")
+    let answered = dispatcher().answer_line(line);
+    serde_json::from_str(&answered.line).expect("an answer is JSON")
+}
+
+/// A batch one element past the limit, which is refused as a whole.
+fn too_many_elements() -> String {
+    use std::fmt::Write as _;
+    let mut line = String::from("[");
+    for id in 0..=solar_core::protocol::MAX_BATCH_ELEMENTS {
+        if id > 0 {
+            line.push(',');
+        }
+        let _ = write!(
+            line,
+            r#"{{"jsonrpc":"2.0","id":{id},"method":"solar.ping"}}"#
+        );
+    }
+    line.push(']');
+    line
 }
 
 /// A request line for a method and its parameters.
@@ -63,9 +80,15 @@ snapshot_envelope!(
     notification_not_supported,
     r#"{"jsonrpc":"2.0","method":"solar.ping"}"#
 );
+snapshot_envelope!(batch_empty, "[]");
+snapshot_envelope!(batch_too_large, &too_many_elements());
 snapshot_envelope!(
-    batch_not_supported,
-    r#"[{"jsonrpc":"2.0","id":1,"method":"solar.ping"}]"#
+    duplicate_id_in_a_batch,
+    r#"[{"jsonrpc":"2.0","id":7,"method":"solar.ping"},{"jsonrpc":"2.0","id":7,"method":"solar.version"}]"#
+);
+snapshot_envelope!(
+    a_batch_of_a_good_and_a_bad_element,
+    r#"[{"jsonrpc":"2.0","id":1,"method":"solar.ping"},{"jsonrpc":"2.0","id":2,"method":"solar.pign"}]"#
 );
 snapshot_envelope!(
     missing_field_in_the_envelope,

@@ -91,6 +91,25 @@ Code `-32600`, and the response carries `id: null`.
 Add an `id`. Any number or string will do, and it comes back untouched in
 `meta.request_id`.
 
+### BATCH_EMPTY
+
+The message is a JSON array with nothing in it, which asks for nothing. JSON-RPC 2.0,
+section 6, requires a single `Invalid Request` for this, so the response is one object and
+not an array, code `-32600`, with `id: null`.
+
+### DUPLICATE_ID
+
+Two elements of one batch carry the same `id`. The whole batch is refused, with a single
+response rather than an array, because an `id` is how a caller matches an answer to a
+question and two answers carrying the same one could not be told apart. `details.field` is
+`id` and `details.received` is the id that appeared twice.
+
+### ID_IN_FLIGHT
+
+The `id` of the request belongs to a call this session has accepted and not yet answered.
+Cancellation targets a call by its `id`, so an `id` may name only one call at a time.
+Wait for the response, or use an `id` that is not in flight.
+
 ## NOT_FOUND
 
 JSON-RPC code `-32601`. Not retriable. A name was given and nothing answers to it.
@@ -145,6 +164,13 @@ bytes up to the next newline so that the following message is read normally.
 
 `details` reports the limit and how many bytes had been read when the limit was reached.
 
+### BATCH_TOO_LARGE
+
+A batch holds more than 64 requests. The elements of a batch run one at a time, so a batch
+that is too large holds the session for a long time while the caller cannot tell how far it
+has got. The whole batch is refused, with a single response rather than an array. `details`
+reports the limit and how many elements arrived. Split the batch.
+
 ## DEADLINE_EXCEEDED
 
 JSON-RPC code `-32005`. Retriable. The work ran past the time it was given.
@@ -176,11 +202,8 @@ the path of its own executable.
 
 JSON-RPC code `-32007`. Not retriable. Valid, understood, and not built yet.
 
-### BATCH_NOT_SUPPORTED
-
-The message is a JSON array. Batches are valid JSON-RPC 2.0 and `solar/1` does not
-implement them. Send one request per line instead; `solar serve --stdio` keeps the session
-open and answers each one in order.
+No reason maps to this status in `solar/1`. `BATCH_NOT_SUPPORTED` did until batches were
+implemented; section 3.2 of the contract is what a batch does now.
 
 ## INTERNAL
 
@@ -207,6 +230,18 @@ reached the API. `details` says which invariant broke.
 
 This is always a bug in SOLAR itself, and the contract tests exist to catch it before a
 release. Report it with the `meta` block.
+
+## CANCELLED
+
+JSON-RPC code `-32008`. Not retriable: stopping was what the caller asked for, so retrying
+automatically would undo the request. The caller decides whether to ask again.
+
+### CALL_CANCELLED
+
+`solar.cancel` named this call, and it stopped. A call that was still queued never started
+and is answered at once; a call that was already running is told to stop and answers when
+it reaches the next point where it checks. Either way the call gets exactly one response,
+which is this one, and `details.received` says which of the two it was.
 
 ## UNKNOWN
 

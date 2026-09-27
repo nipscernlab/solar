@@ -115,6 +115,77 @@ proptest! {
         );
     }
 
+    /// A batch answers with one line holding one response per element, in order.
+    #[test]
+    fn a_batch_answers_every_element_in_order(
+        ids in prop::collection::vec(0i64..1_000_000, 1..12),
+        index in 0usize..16,
+    ) {
+        // Ids repeat in a generated vector, and a repeated id is refused as a whole, which
+        // is its own property below. Here the ids are made unique while keeping the order.
+        let mut unique: Vec<i64> = Vec::new();
+        for id in ids {
+            if !unique.contains(&id) {
+                unique.push(id);
+            }
+        }
+        let names = method_names();
+        let method = names[index % names.len()];
+        let elements: Vec<Value> = unique
+            .iter()
+            .map(|id| json!({"jsonrpc": "2.0", "id": id, "method": method}))
+            .collect();
+        let answer = dispatcher().answer_line(&Value::Array(elements).to_string());
+
+        prop_assert_eq!(answer.calls, unique.len());
+        prop_assert!(!answer.line.contains('\n'), "the framing is one line");
+        let answers: Vec<Value> = serde_json::from_str(&answer.line)
+            .expect("a batch answers with an array");
+        prop_assert_eq!(answers.len(), unique.len());
+        for (expected, got) in unique.iter().zip(&answers) {
+            prop_assert!(
+                is_a_well_formed_response(&got.to_string()).is_ok(),
+                "an element of a batch is a whole response: {got}"
+            );
+            prop_assert_eq!(got["id"].as_i64(), Some(*expected));
+        }
+    }
+
+    /// Whatever the array holds, the answer is one line and never a panic.
+    #[test]
+    fn any_array_of_json_is_answered_in_one_line(
+        elements in prop::collection::vec(any_json(), 0..8),
+    ) {
+        let line = Value::Array(elements).to_string();
+        let answer = dispatcher().answer_line(&line);
+        prop_assert!(!answer.line.contains('\n'), "the framing is one line: {}", answer.line);
+        let value: Value = serde_json::from_str(&answer.line)
+            .map_err(|failure| TestCaseError::fail(format!("not JSON: {failure}")))?;
+        match value {
+            Value::Array(answers) => {
+                for got in &answers {
+                    prop_assert!(is_a_well_formed_response(&got.to_string()).is_ok());
+                }
+            }
+            single => prop_assert!(is_a_well_formed_response(&single.to_string()).is_ok()),
+        }
+    }
+
+    /// A batch that repeats an id is refused as a whole, whatever the ids are.
+    #[test]
+    fn a_repeated_id_refuses_the_whole_batch(id in 0i64..1_000_000, extra in 1usize..6) {
+        let mut elements = vec![json!({"jsonrpc": "2.0", "id": id, "method": "solar.ping"}); 2];
+        for other in 0..extra {
+            let unrelated = 1_000_000 + i64::try_from(other).unwrap_or(0);
+            elements.push(json!({"jsonrpc": "2.0", "id": unrelated, "method": "solar.ping"}));
+        }
+        let answer = dispatcher().answer_line(&Value::Array(elements).to_string());
+        let value = is_a_well_formed_response(&answer.line)
+            .map_err(TestCaseError::fail)?;
+        prop_assert_eq!(value["error"]["data"]["reason"].as_str(), Some("DUPLICATE_ID"));
+        prop_assert_eq!(answer.calls, 1);
+    }
+
     /// A well formed call always comes back with the id it was given.
     #[test]
     fn the_id_always_comes_back(id in 0i64..1_000_000, index in 0usize..16) {

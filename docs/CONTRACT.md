@@ -68,17 +68,49 @@ requires. Unknown members inside `params` are **not** ignored: every API declare
 parameters with `deny_unknown_fields`, so a misspelled parameter is an error instead of a
 silent no-op.
 
-### 3.1 The two deliberate deviations from JSON-RPC 2.0
+### 3.1 The one deliberate deviation from JSON-RPC 2.0
 
-1. **Notifications are not accepted.** A message without `id` is a notification in
-   JSON-RPC 2.0, and a server must not answer it. SOLAR refuses that rule, because every
-   call gets a response. A message without `id`, or with `id: null`, receives an error with
-   code `-32600`, status `INVALID_ARGUMENT`, reason `NOTIFICATION_NOT_SUPPORTED` and
-   `id: null`.
-2. **Batches are not accepted in `solar/1`.** A top level JSON array receives a single
-   error with status `UNIMPLEMENTED`, reason `BATCH_NOT_SUPPORTED` and `id: null`. A batch
-   is valid JSON-RPC that SOLAR does not implement yet, which is why it is `UNIMPLEMENTED`
-   and not a malformed request.
+**Notifications are not accepted.** A message without `id` is a notification in
+JSON-RPC 2.0, and a server must not answer it. SOLAR refuses that rule, because every call
+gets a response. A message without `id`, or with `id: null`, receives an error with code
+`-32600`, status `INVALID_ARGUMENT`, reason `NOTIFICATION_NOT_SUPPORTED` and `id: null`.
+
+Batches were the second deviation until `solar/1` learned them; section 3.2 is what they
+do now.
+
+### 3.2 Batches
+
+A line holding a JSON **array** of requests is a batch. It gets **one line back**, holding
+an array of responses.
+
+- **The order is the order of the requests.** JSON-RPC 2.0 allows a server to answer a
+  batch in any order and asks the client to match by `id`; SOLAR is stricter, so that a
+  batch is deterministic and a client may match by position as well.
+- **Every element gets its own response**, including the ones that are invalid. An element
+  without `id` gets `INVALID_ARGUMENT` / `NOTIFICATION_NOT_SUPPORTED` with `id: null`,
+  inside the array, exactly as a single request would outside one.
+- **Each response carries its own `meta`**, with its own `duration_us`.
+- **The elements run one at a time, in the order they appear.** An element that fails does
+  not stop the ones after it.
+
+Three things are refused as a whole, with a **single** response rather than an array,
+because the batch itself is what is wrong:
+
+| What | Status and reason |
+| ---- | ----------------- |
+| An empty array | `INVALID_ARGUMENT` / `BATCH_EMPTY`, code `-32600`, as JSON-RPC 2.0 requires |
+| More than **64** elements | `RESOURCE_EXHAUSTED` / `BATCH_TOO_LARGE` |
+| Two elements with the same `id` | `INVALID_ARGUMENT` / `DUPLICATE_ID` |
+
+Two elements with the same `id` are refused because their responses could not be told
+apart: `id` is how a caller matches an answer to a question, and a batch that asks the
+same question twice has no answer that means anything.
+
+A batch is not nested: an element that is itself an array is refused like any other
+element that is not a request object.
+
+**A client that sends no batch sees no difference.** A single request object behaves
+exactly as it did before.
 
 ## 4. Method names
 
@@ -174,6 +206,7 @@ the envelope level, listed under the table.
 | `UNAVAILABLE`         | `-32006` | A dependency SOLAR needs is not available right now.           | yes       |
 | `UNIMPLEMENTED`       | `-32007` | Valid, understood, not built yet.                              | no        |
 | `INTERNAL`            | `-32603` | A bug in SOLAR. A panic reaches the caller as this.            | no        |
+| `CANCELLED`           | `-32008` | The caller asked for the call to stop, and it stopped.         | no        |
 | `UNKNOWN`             | `-32099` | A failure that could not be classified. Should never be seen.  | no        |
 
 The two envelope level exceptions, which exist because JSON-RPC 2.0 reserves those codes
@@ -278,7 +311,66 @@ example pins down the shape of a timestamp, a path or a duration without pretend
 the value. An example never states a value that the machine running the test cannot
 reproduce.
 
-## 9. Timeouts, panics and cancellation
+## 9. Cancellation
+
+A caller that has stopped waiting says so with an ordinary call. SOLAR accepts no
+notifications, so there is no special message: `solar.cancel`, with `{"id": <the id>}`,
+is an API like any other, with a specification, a schema and examples.
+
+### 9.1 What a session does while a call is running
+
+A session reads its input on a thread of its own, into a queue. Calls still run **one at a
+time, in the order they arrived**. The single exception is `solar.cancel`, which is
+answered the moment it is read, because a cancellation that waited its turn behind the
+call it is cancelling would be useless.
+
+A response may therefore arrive out of order: the answer to a `solar.cancel` sent second
+can precede the answer to the call sent first. JSON-RPC 2.0 allows this, and `id` is how a
+caller matches an answer to its question.
+
+**A client that never calls `solar.cancel` sees its responses in the order of its
+requests.** That is a promise, and a test holds it.
+
+### 9.2 What `solar.cancel` reports
+
+| `outcome` | What happened |
+| --------- | -------------- |
+| `cancelled_while_queued` | The call had not started. It will not start, and it has already been answered with `CANCELLED`. |
+| `cancellation_requested` | The call is running. Its handler has been told, and it will end with its own result or with `CANCELLED`, whichever it reaches first. |
+| `already_finished` | The call was answered before the cancellation arrived. Nothing changed. |
+| `unknown` | No call with that `id` has been seen in this session. Nothing changed. |
+
+### 9.3 Exactly one response, whatever the timing
+
+**Every request gets exactly one response: its result, or `CANCELLED`, never both and
+never neither.** This holds however the cancellation and the call are interleaved, and it
+is the property the implementation is built around: the queue and the running call are
+owned by one lock, so a cancellation finds a call either waiting, where it is removed and
+answered at once, or running, where its handler is told. It can never find it in both
+states, nor in neither.
+
+A call cancelled while queued is answered with `CANCELLED` / `CALL_CANCELLED`.
+
+### 9.4 What a handler must do
+
+A handler receives a cancellation token through its [`Context`] and checks it at points
+where stopping is safe. A handler that never checks is not a special case: it runs to its
+end, or past its budget, and section 10 already says what happens then.
+
+Cancelling is a request, not a command. A handler that has already produced its result
+returns it, and the caller is told `already_finished`.
+
+### 9.5 An `id` may not be reused while it is alive
+
+Cancellation targets a call by `id`, so an `id` that is already queued or running in this
+session is refused for a new request, with `INVALID_ARGUMENT` / `ID_IN_FLIGHT`. An `id`
+becomes free again as soon as its call is answered.
+
+**A client that never calls `solar.cancel` is unaffected by any of this**, as long as it
+does not reuse an `id` while the first call is still unanswered, which it could not have
+matched anyway.
+
+## 10. Timeouts and panics
 
 - Dispatch runs every handler on a worker thread and waits for `timeout_ms`.
 - A handler that panics produces `INTERNAL` / `HANDLER_PANIC`, with the panic message and
@@ -288,9 +380,10 @@ reproduce.
   has no safe way to kill a thread. An abandoned handler keeps running until it finishes,
   and its result is discarded. Handlers are therefore written so that their own internal
   budgets are shorter than `timeout_ms`.
-- There is no cancellation message in `solar/1`.
+- Cancellation has a section of its own, section 9. A handler that ignores its token
+  is abandoned exactly like one that overruns, which is what this section describes.
 
-## 10. Versions
+## 11. Versions
 
 - **Protocol**: `solar/1`. The number changes only when an existing message shape changes in
   a way that breaks a caller. Adding an API never changes it.
@@ -302,7 +395,7 @@ reproduce.
   8.1.
 - **SOLAR**: the version of the build, reported in `meta.solar_version`.
 
-## 11. Conformance
+## 12. Conformance
 
 Every rule above is enforced mechanically. A change that breaks one of them fails a test
 instead of waiting for a human reviewer.
@@ -321,8 +414,10 @@ instead of waiting for a human reviewer.
 | The versioned manifest is exactly what the generator produces | `::manifest_is_not_stale` |
 | The status to code table and the reason catalogue agree with `docs/ERRORS.md` | `solar-core/tests/docs.rs` |
 | Standard output carries protocol only, even with `SOLAR_LOG=trace` | `solar-cli/tests/cli.rs::logging_never_touches_stdout` |
+| A batch answers in order, one response per element | `solar-apis/tests/properties.rs::a_batch_answers_every_element_in_order`, `conformance/cases/batch_*` |
+| A batch that is wrong as a whole answers with a single response | `solar-core/src/protocol.rs` tests, `solar-cli/tests/cli.rs::an_empty_batch_is_refused_with_a_single_response` |
 
-## 12. Exit codes of the `solar` binary
+## 13. Exit codes of the `solar` binary
 
 `solar call` prints the whole response envelope on standard output and then exits with a
 code derived from the response, so that a shell script never has to parse JSON to know what
@@ -342,6 +437,7 @@ happened.
 | `10`      | `UNIMPLEMENTED`                                       |
 | `11`      | `INTERNAL`                                            |
 | `12`      | `UNKNOWN`                                             |
+| `13`      | `CANCELLED`                                           |
 | `70`      | SOLAR could not even produce a response, for example because standard output was closed. |
 
 `solar serve --stdio` exits `0` when the input ends cleanly, whatever the individual calls

@@ -12,8 +12,14 @@ protocol is stated here in its own line.
 ### Added
 
 - The `solar/1` protocol: JSON-RPC 2.0 over standard input and output, one message per
-  line, with two deliberate deviations. Notifications are refused, because every call gets
-  a response, and batches are `UNIMPLEMENTED` in this version.
+  line, with one deliberate deviation: notifications are refused, because every call gets
+  a response.
+- Batches, section 6 of JSON-RPC 2.0, and stricter than it: a line holding an array of
+  requests answers with one line holding the array of responses **in the order of the
+  requests**, each with its own `meta`, up to 64 elements. An empty array, a larger one,
+  and two elements carrying the same `id` are refused as a whole with `BATCH_EMPTY`,
+  `BATCH_TOO_LARGE` and `DUPLICATE_ID`. A client that sends no batch sees no difference.
+  Record [0010](docs/adr/0010-batches-answer-in-order.md).
 - `solar-core`: the envelope, the eleven canonical statuses and the reason catalogue, the
   `Api` template, the registry that checks it, dispatch with a worker thread per call that
   turns a panic into `INTERNAL` and an overrun budget into `DEADLINE_EXCEEDED`, the NDJSON

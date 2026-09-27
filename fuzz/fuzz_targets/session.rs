@@ -18,9 +18,16 @@ fuzz_target!(|data: &[u8]| {
     let answered = serve(data, &mut output, dispatcher).expect("writing to a Vec cannot fail");
 
     let text = String::from_utf8(output).expect("SOLAR writes UTF-8");
-    let lines = text.lines().count() as u64;
-    assert_eq!(lines, answered, "every answer is exactly one line");
+    // One message is one line, and one line answers one call unless it is a batch, in
+    // which case it answers as many calls as the array holds.
+    let mut calls = 0u64;
     for line in text.lines() {
-        assert!(serde_json::from_str::<serde_json::Value>(line).is_ok(), "{line} is not JSON");
+        let value: serde_json::Value =
+            serde_json::from_str(line).unwrap_or_else(|_| panic!("{line} is not JSON"));
+        calls += match value.as_array() {
+            Some(answers) => answers.len() as u64,
+            None => 1,
+        };
     }
+    assert_eq!(calls, answered, "every call is answered exactly once");
 });

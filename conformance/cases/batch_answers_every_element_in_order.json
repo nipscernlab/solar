@@ -1,0 +1,21 @@
+{
+  "name": "batch_answers_every_element_in_order",
+  "description": "A JSON array of requests answers with one array of responses, in the same order",
+  "request": [
+    {"jsonrpc": "2.0", "id": 1, "method": "solar.ping", "params": {"message": "first"}},
+    {"jsonrpc": "2.0", "id": 2, "method": "solar.ping", "params": {"message": "second"}}
+  ],
+  "response": [
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "result": {"data": {"pong": true, "echo": "first", "received_at": "$any"}, "meta": "$any", "warnings": []}
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "result": {"data": {"pong": true, "echo": "second", "received_at": "$any"}, "meta": "$any", "warnings": []}
+    }
+  ],
+  "match": "subset"
+}

@@ -1,0 +1,18 @@
+{
+  "name": "batch_with_two_equal_ids_is_refused",
+  "description": "Two elements carrying the same id are refused as a whole, since their responses could not be told apart",
+  "request": [
+    {"jsonrpc": "2.0", "id": 7, "method": "solar.ping"},
+    {"jsonrpc": "2.0", "id": 7, "method": "solar.version"}
+  ],
+  "response": {
+    "jsonrpc": "2.0",
+    "id": null,
+    "error": {
+      "code": -32602,
+      "message": "$any",
+      "data": {"status": "INVALID_ARGUMENT", "reason": "DUPLICATE_ID", "details": "$any", "meta": "$any"}
+    }
+  },
+  "match": "subset"
+}

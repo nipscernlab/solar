@@ -1,0 +1,37 @@
+---
+source: crates/solar-apis/tests/snapshots_of_the_wire.rs
+assertion_line: 84
+expression: answer(& &too_many_elements())
+---
+{
+  "error": {
+    "code": -32004,
+    "data": {
+      "details": [
+        {
+          "docs": "docs/ERRORS.md#resource_exhausted",
+          "expected": "at most 64 requests in one batch",
+          "field": null,
+          "hint": "Split it. The elements run one at a time, so a smaller batch also tells the caller sooner how far it has got.",
+          "received": 65
+        }
+      ],
+      "meta": {
+        "api_version": null,
+        "arch": "[arch]",
+        "duration_us": "[duration]",
+        "method": null,
+        "os": "[os]",
+        "protocol": "solar/1",
+        "request_id": null,
+        "solar_version": "[version]",
+        "started_at": "[timestamp]"
+      },
+      "reason": "BATCH_TOO_LARGE",
+      "status": "RESOURCE_EXHAUSTED"
+    },
+    "message": "The batch holds 65 requests, and a batch may hold 64."
+  },
+  "id": null,
+  "jsonrpc": "2.0"
+}

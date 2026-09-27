@@ -214,3 +214,13 @@ fn the_contract_states_the_limit_the_code_enforces() {
     );
     assert!(contract.contains(solar_core::meta::PROTOCOL));
 }
+
+#[test]
+fn the_contract_states_the_batch_limit_the_code_enforces() {
+    let contract = read("docs/CONTRACT.md");
+    let limit = solar_core::protocol::MAX_BATCH_ELEMENTS.to_string();
+    assert!(
+        contract.contains(&format!("**{limit}**")),
+        "docs/CONTRACT.md does not state that a batch holds at most {limit} elements"
+    );
+}

@@ -1,9 +1,9 @@
 //! The NDJSON session: read a line, answer it, read the next one.
 //!
-//! The loop is deliberately sequential. One request is read, dispatched and answered before
+//! The loop is deliberately sequential. One message is read, dispatched and answered before
 //! the next is read, so responses come back in request order and a caller never has to
-//! correlate anything. Concurrency, if it is ever needed, is a protocol change and not a
-//! detail of this loop.
+//! correlate anything. A batch is one message: it answers with one line holding the array
+//! of its responses, in the order of its elements, as section 3.2 of the contract says.
 
 use std::io::{BufRead, Write};
 
@@ -127,7 +127,8 @@ fn not_utf8(position: usize) -> SolarError {
 ///
 /// Every line that is a message produces exactly one response line, flushed immediately so
 /// that a caller reading a pipe never waits for a buffer to fill. A line that is empty or
-/// only whitespace is not a message and produces nothing.
+/// only whitespace is not a message and produces nothing. The count returned is of calls
+/// answered, so a batch of five counts five while writing one line.
 ///
 /// # Errors
 ///
@@ -197,12 +198,12 @@ pub fn serve_recording<R: BufRead, W: Write, F: Write>(
                 if let Some(recorder) = recorder.as_mut() {
                     recorder.record(Direction::In, line)?;
                 }
-                let response = dispatcher.handle_line(line);
-                let written = write_response(&mut output, &response)?;
+                let answer = dispatcher.answer_line(line);
+                write_line(&mut output, &answer.line)?;
                 if let Some(recorder) = recorder.as_mut() {
-                    recorder.record(Direction::Out, &written)?;
+                    recorder.record(Direction::Out, &answer.line)?;
                 }
-                answered += 1;
+                answered += answer.calls as u64;
             }
         }
     }
@@ -211,11 +212,16 @@ pub fn serve_recording<R: BufRead, W: Write, F: Write>(
 /// Serialises one response, writes it, flushes it, and gives back what it wrote.
 fn write_response<W: Write>(output: &mut W, response: &Response) -> std::io::Result<String> {
     let line = response.to_line();
+    write_line(output, &line)?;
+    Ok(line)
+}
+
+/// Writes one line of output and flushes it, so a caller reading a pipe never waits.
+fn write_line<W: Write>(output: &mut W, line: &str) -> std::io::Result<()> {
     logging::trace(&format!("<-- {line}"));
     output.write_all(line.as_bytes())?;
     output.write_all(b"\n")?;
-    output.flush()?;
-    Ok(line)
+    output.flush()
 }
 
 /// A response to something that never became a request, so it has no id and no method.
@@ -346,6 +352,47 @@ mod tests {
         assert_eq!(error.reason(), Reason::MessageTooLarge);
         assert_eq!(error.details()[0].received, Value::from(99));
         assert!(error.message().contains(&MAX_REQUEST_BYTES.to_string()));
+    }
+
+    #[test]
+    fn a_batch_is_one_line_in_and_one_line_out() {
+        let responses = run(
+            "[{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"a.b\"},{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"a.b\"}]\n",
+        );
+        assert_eq!(responses.len(), 1, "one message, one line");
+        let array = responses[0].as_array().unwrap();
+        assert_eq!(array.len(), 2);
+        assert_eq!(array[0]["id"], 1);
+        assert_eq!(array[1]["id"], 2);
+    }
+
+    #[test]
+    fn a_batch_counts_as_many_calls_as_it_holds() {
+        let dispatcher = empty_dispatcher();
+        let mut output = Vec::new();
+        let input = "[{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"a.b\"},{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"a.b\"},{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"a.b\"}]\n";
+        let answered = serve(input.as_bytes(), &mut output, &dispatcher).unwrap();
+        assert_eq!(answered, 3, "three calls, written on one line");
+    }
+
+    #[test]
+    fn a_batch_that_is_wrong_as_a_whole_answers_with_one_response_not_an_array() {
+        let responses = run("[]\n");
+        assert_eq!(responses.len(), 1);
+        assert!(responses[0].is_object(), "not an array: {}", responses[0]);
+        assert_eq!(responses[0]["error"]["data"]["reason"], "BATCH_EMPTY");
+        assert_eq!(responses[0]["error"]["code"], -32600);
+    }
+
+    #[test]
+    fn a_batch_and_a_single_request_may_share_a_session() {
+        let responses = run(
+            "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"a.b\"}\n[{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"a.b\"}]\n{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"a.b\"}\n",
+        );
+        assert_eq!(responses.len(), 3);
+        assert_eq!(responses[0]["id"], 1);
+        assert_eq!(responses[1][0]["id"], 2);
+        assert_eq!(responses[2]["id"], 3);
     }
 
     #[test]

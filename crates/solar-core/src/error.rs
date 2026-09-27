@@ -133,6 +133,7 @@ impl SolarError {
                 | Reason::TypeMismatch
                 | Reason::InvalidValue
                 | Reason::NotificationNotSupported
+                | Reason::BatchEmpty
         )
     }
 

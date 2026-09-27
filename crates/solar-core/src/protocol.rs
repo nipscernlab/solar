@@ -135,6 +135,110 @@ pub fn type_name(value: &Value) -> &'static str {
     }
 }
 
+/// The largest number of elements one batch may hold.
+///
+/// A line is already bounded to 16 MiB, so this is not about memory: it is about a batch
+/// that would hold a session for minutes while its elements run one at a time, with the
+/// caller unable to tell how far it had got. Sixty-four is generous for the reason
+/// batches exist, which is saving round trips on small calls.
+pub const MAX_BATCH_ELEMENTS: usize = 64;
+
+/// What one line of input turned out to be.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Incoming {
+    /// One request, which is the ordinary case.
+    One(Result<Request, Box<RequestError>>),
+    /// A batch: several requests, each already read or already refused, in the order
+    /// they appeared.
+    Batch(Vec<Result<Request, Box<RequestError>>>),
+    /// The line is a batch that is wrong as a whole, and gets a single response.
+    Refused(Box<RequestError>),
+}
+
+/// Reads one line, which may be a single request or a batch.
+///
+/// Section 3.2 of the contract: a batch answers with one line holding an array of
+/// responses, in the order of the requests, and three things are refused as a whole
+/// rather than element by element, because the batch itself is what is wrong.
+#[must_use]
+pub fn read_line(line: &str) -> Incoming {
+    let line = strip_bom(line);
+    let Ok(value) = serde_json::from_str::<Value>(line) else {
+        // Not JSON at all: parse_request builds the error, with the text in it.
+        return Incoming::One(parse_request(line).map_err(Box::new));
+    };
+
+    let Some(elements) = value.as_array() else {
+        return Incoming::One(parse_request(line).map_err(Box::new));
+    };
+
+    if elements.is_empty() {
+        return Incoming::Refused(Box::new(RequestError::bare(
+            SolarError::new(
+                Reason::BatchEmpty,
+                "The request is an empty batch, which asks for nothing.",
+            )
+            .with_detail(
+                ErrorDetail::new(Status::InvalidArgument)
+                    .expected("a batch with at least one request in it")
+                    .received(Value::Array(Vec::new()))
+                    .hint("Send the requests, or send nothing at all."),
+            )
+            .as_envelope_failure(),
+        )));
+    }
+
+    if elements.len() > MAX_BATCH_ELEMENTS {
+        return Incoming::Refused(Box::new(RequestError::bare(
+            SolarError::new(
+                Reason::BatchTooLarge,
+                format!(
+                    "The batch holds {} requests, and a batch may hold {MAX_BATCH_ELEMENTS}.",
+                    elements.len()
+                ),
+            )
+            .with_detail(
+                ErrorDetail::new(Status::ResourceExhausted)
+                    .expected(format!("at most {MAX_BATCH_ELEMENTS} requests in one batch"))
+                    .received(elements.len())
+                    .hint(
+                        "Split it. The elements run one at a time, so a smaller batch also tells the caller sooner how far it has got.",
+                    ),
+            ),
+        )));
+    }
+
+    let read: Vec<Result<Request, Box<RequestError>>> = elements
+        .iter()
+        .map(|element| parse_request(&element.to_string()).map_err(Box::new))
+        .collect();
+
+    // Two elements with the same id would give two responses nobody could tell apart.
+    let mut seen: Vec<&RequestId> = Vec::with_capacity(read.len());
+    for request in read.iter().flatten() {
+        if seen.contains(&&request.id) {
+            return Incoming::Refused(Box::new(RequestError::bare(
+                SolarError::new(
+                    Reason::DuplicateId,
+                    format!("Two requests in the batch carry the id {}.", request.id),
+                )
+                .with_detail(
+                    ErrorDetail::new(Status::InvalidArgument)
+                        .field("id")
+                        .expected("an id that appears once in the batch")
+                        .received(serde_json::to_value(&request.id).unwrap_or(Value::Null))
+                        .hint(
+                            "An id is how an answer is matched to its question, so two answers carrying the same one could not be told apart.",
+                        ),
+                ),
+            )));
+        }
+        seen.push(&request.id);
+    }
+
+    Incoming::Batch(read)
+}
+
 /// Reads one line into a [`Request`], or into the error that line deserves.
 ///
 /// The members are checked in the order `id`, `jsonrpc`, `method`, `params`. The identifier
@@ -142,7 +246,7 @@ pub fn type_name(value: &Value) -> &'static str {
 ///
 /// # Errors
 ///
-/// Returns a [`RequestError`] when the line is not valid JSON, is a batch, is not an
+/// Returns a [`RequestError`] when the line is not valid JSON, is not an
 /// object, has no usable `id`, does not declare `"jsonrpc": "2.0"`, has no valid `method`,
 /// or carries a `params` that is not an object.
 pub fn parse_request(line: &str) -> Result<Request, RequestError> {
@@ -168,24 +272,6 @@ pub fn parse_request(line: &str) -> Result<Request, RequestError> {
             ));
         }
     };
-
-    if value.is_array() {
-        return Err(RequestError::bare(
-            SolarError::new(
-                Reason::BatchNotSupported,
-                "Batch requests are not implemented in solar/1.",
-            )
-            .with_detail(
-                ErrorDetail::new(Status::Unimplemented)
-                    .expected("a single JSON object")
-                    .received(Value::String("array".to_owned()))
-                    .hint(
-                        "Send one request per line. `solar serve --stdio` keeps the session \
-                         open and answers each line in order.",
-                    ),
-            ),
-        ));
-    }
 
     let Some(object) = value.as_object() else {
         return Err(RequestError::bare(
@@ -558,6 +644,7 @@ pub const fn protocol_name() -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fmt::Write as _;
 
     fn err_of(line: &str) -> RequestError {
         parse_request(line).expect_err("this line should not parse")
@@ -598,11 +685,136 @@ mod tests {
     }
 
     #[test]
-    fn a_batch_is_unimplemented_rather_than_invalid() {
-        let failed = err_of(r#"[{"jsonrpc":"2.0","id":1,"method":"solar.ping"}]"#);
-        assert_eq!(failed.error.reason(), Reason::BatchNotSupported);
-        assert_eq!(failed.error.status(), Status::Unimplemented);
-        assert_eq!(failed.error.code(), -32007);
+    fn a_batch_is_read_element_by_element_in_order() {
+        let line =
+            r#"[{"jsonrpc":"2.0","id":1,"method":"a.b"},{"jsonrpc":"2.0","id":2,"method":"c.d"}]"#;
+        let Incoming::Batch(elements) = read_line(line) else {
+            panic!("an array is a batch");
+        };
+        assert_eq!(elements.len(), 2);
+        assert_eq!(elements[0].as_ref().unwrap().method, "a.b");
+        assert_eq!(elements[1].as_ref().unwrap().method, "c.d");
+    }
+
+    #[test]
+    fn an_element_of_a_batch_may_fail_on_its_own() {
+        let line = r#"[{"jsonrpc":"2.0","id":1,"method":"a.b"},{"jsonrpc":"2.0","method":"c.d"}]"#;
+        let Incoming::Batch(elements) = read_line(line) else {
+            panic!("an array is a batch");
+        };
+        assert!(elements[0].is_ok());
+        let failed = elements[1].as_ref().unwrap_err();
+        assert_eq!(failed.error.reason(), Reason::NotificationNotSupported);
+        assert_eq!(failed.id, None);
+    }
+
+    #[test]
+    fn an_empty_batch_is_refused_as_a_whole_with_the_invalid_request_code() {
+        let Incoming::Refused(failed) = read_line("[]") else {
+            panic!("an empty batch is refused as a whole");
+        };
+        assert_eq!(failed.error.reason(), Reason::BatchEmpty);
+        assert_eq!(failed.error.status(), Status::InvalidArgument);
+        assert_eq!(failed.error.code(), -32600);
+    }
+
+    #[test]
+    fn a_batch_past_the_limit_is_refused_as_a_whole() {
+        let mut line = String::from("[");
+        for id in 0..=MAX_BATCH_ELEMENTS {
+            if id > 0 {
+                line.push(',');
+            }
+            let _ = write!(line, r#"{{"jsonrpc":"2.0","id":{id},"method":"a.b"}}"#);
+        }
+        line.push(']');
+
+        let Incoming::Refused(failed) = read_line(&line) else {
+            panic!("a batch of {} is too large", MAX_BATCH_ELEMENTS + 1);
+        };
+        assert_eq!(failed.error.reason(), Reason::BatchTooLarge);
+        assert_eq!(failed.error.status(), Status::ResourceExhausted);
+        assert!(
+            failed
+                .error
+                .message()
+                .contains(&MAX_BATCH_ELEMENTS.to_string()),
+            "the message says what the limit is: {}",
+            failed.error.message()
+        );
+    }
+
+    #[test]
+    fn a_batch_of_exactly_the_limit_is_read() {
+        let mut line = String::from("[");
+        for id in 0..MAX_BATCH_ELEMENTS {
+            if id > 0 {
+                line.push(',');
+            }
+            let _ = write!(line, r#"{{"jsonrpc":"2.0","id":{id},"method":"a.b"}}"#);
+        }
+        line.push(']');
+
+        let Incoming::Batch(elements) = read_line(&line) else {
+            panic!("the limit itself is allowed");
+        };
+        assert_eq!(elements.len(), MAX_BATCH_ELEMENTS);
+    }
+
+    #[test]
+    fn two_elements_with_the_same_id_are_refused_as_a_whole() {
+        let line =
+            r#"[{"jsonrpc":"2.0","id":7,"method":"a.b"},{"jsonrpc":"2.0","id":7,"method":"c.d"}]"#;
+        let Incoming::Refused(failed) = read_line(line) else {
+            panic!("two answers carrying the same id could not be told apart");
+        };
+        assert_eq!(failed.error.reason(), Reason::DuplicateId);
+        assert_eq!(failed.error.status(), Status::InvalidArgument);
+        assert_eq!(failed.error.details()[0].field.as_deref(), Some("id"));
+        assert!(failed.error.message().contains('7'));
+    }
+
+    #[test]
+    fn a_string_id_and_a_number_id_that_look_alike_are_not_the_same_id() {
+        let line = r#"[{"jsonrpc":"2.0","id":7,"method":"a.b"},{"jsonrpc":"2.0","id":"7","method":"c.d"}]"#;
+        assert!(
+            matches!(read_line(line), Incoming::Batch(elements) if elements.len() == 2),
+            "7 and \"7\" are different ids in JSON-RPC 2.0"
+        );
+    }
+
+    #[test]
+    fn an_element_that_is_itself_an_array_is_refused_like_any_other_non_object() {
+        let line = r#"[[{"jsonrpc":"2.0","id":1,"method":"a.b"}]]"#;
+        let Incoming::Batch(elements) = read_line(line) else {
+            panic!("the outer array is the batch");
+        };
+        assert_eq!(elements.len(), 1);
+        let failed = elements[0].as_ref().unwrap_err();
+        assert_eq!(failed.error.reason(), Reason::TypeMismatch);
+    }
+
+    #[test]
+    fn a_single_request_is_still_a_single_request() {
+        let line = r#"{"jsonrpc":"2.0","id":1,"method":"a.b"}"#;
+        let Incoming::One(Ok(request)) = read_line(line) else {
+            panic!("an object is one request");
+        };
+        assert_eq!(request.method, "a.b");
+    }
+
+    #[test]
+    fn a_line_that_is_not_json_at_all_is_one_parse_error_and_not_a_batch() {
+        let Incoming::One(Err(failed)) = read_line("{not json") else {
+            panic!("broken json is one failure");
+        };
+        assert_eq!(failed.error.reason(), Reason::ParseError);
+    }
+
+    #[test]
+    fn a_batch_with_a_byte_order_mark_is_still_a_batch() {
+        let line = "\u{feff}[{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"a.b\"}]";
+        assert!(matches!(read_line(line), Incoming::Batch(elements) if elements.len() == 1));
     }
 
     #[test]

@@ -198,11 +198,29 @@ fn a_notification_is_refused_because_every_call_gets_a_response() {
 }
 
 #[test]
-fn a_batch_is_unimplemented() {
-    let output = serve("[{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"solar.ping\"}]\n");
+fn a_batch_answers_with_one_line_holding_an_array() {
+    let output = serve(
+        "[{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"solar.ping\"},\
+         {\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"solar.version\"}]\n",
+    );
+    let stdout = stdout_of(&output);
+    assert_eq!(stdout.lines().count(), 1, "one message, one line: {stdout}");
+    let answers = parse(&stdout);
+    let answers = answers.as_array().expect("a batch answers with an array");
+    assert_eq!(answers.len(), 2);
+    assert_eq!(answers[0]["id"], 1);
+    assert_eq!(answers[0]["result"]["data"]["pong"], true);
+    assert_eq!(answers[1]["id"], 2);
+    assert!(answers[1]["result"]["data"]["solar_version"].is_string());
+}
+
+#[test]
+fn an_empty_batch_is_refused_with_a_single_response() {
+    let output = serve("[]\n");
     let response = parse(&stdout_of(&output));
-    assert_eq!(response["error"]["data"]["status"], "UNIMPLEMENTED");
-    assert_eq!(response["error"]["data"]["reason"], "BATCH_NOT_SUPPORTED");
+    assert!(response.is_object(), "not an array: {response}");
+    assert_eq!(response["error"]["data"]["status"], "INVALID_ARGUMENT");
+    assert_eq!(response["error"]["data"]["reason"], "BATCH_EMPTY");
 }
 
 #[test]

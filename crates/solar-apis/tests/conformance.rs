@@ -32,7 +32,8 @@ struct Case {
     /// The request as a raw line, for a case about something malformed.
     #[serde(default)]
     request_line: Option<String>,
-    /// The whole response envelope that must come back.
+    /// The whole response envelope that must come back: an object for a single request,
+    /// an array for a batch.
     response: Value,
     /// `exact` or `subset`, the two modes of section 8.2 of the contract.
     #[serde(rename = "match")]
@@ -124,8 +125,8 @@ fn every_case_is_well_formed() {
             case.name
         );
         assert!(
-            case.response.is_object(),
-            "{}: a response is an object",
+            case.response.is_object() || case.response.is_array(),
+            "{}: a response is an object, or an array when the request is a batch",
             case.name
         );
         let _ = case.mode();
@@ -140,7 +141,7 @@ fn every_case_holds_against_this_build() {
 
     for (_, case) in cases() {
         let line = case.line();
-        let answered = dispatcher.handle_line(&line).to_line();
+        let answered = dispatcher.answer_line(&line).line;
         let real: Value = serde_json::from_str(&answered)
             .unwrap_or_else(|failure| panic!("{}: the answer is not JSON: {failure}", case.name));
 
@@ -165,7 +166,8 @@ fn the_suite_covers_the_cases_a_client_has_to_handle() {
     for expected in [
         "ping_bare",
         "notification_is_refused",
-        "batch_is_unimplemented",
+        "batch_answers_every_element_in_order",
+        "batch_empty_is_refused",
         "parse_error",
         "method_not_found_suggests_the_closest",
         "unknown_parameter_is_refused",

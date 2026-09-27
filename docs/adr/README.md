@@ -26,3 +26,4 @@ the reasoning that was once persuasive is part of the history.
 | [0007](0007-experimental-until-one-point-zero.md) | Every API is experimental until SOLAR 1.0.0 | Accepted |
 | [0008](0008-abandon-a-handler-that-overruns.md) | A handler that overruns is abandoned, not killed | Accepted |
 | [0009](0009-one-reusable-worker-thread.md) | One reusable worker thread per dispatching thread | Accepted |
+| [0010](0010-batches-answer-in-order.md) | Batches are answered in the order they were sent | Accepted |

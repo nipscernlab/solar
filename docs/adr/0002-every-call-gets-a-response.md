@@ -32,3 +32,8 @@ Every code path in dispatch therefore ends in a response: a panic becomes `INTER
 overrun budget becomes `DEADLINE_EXCEEDED`, a registry that did not build answers every
 call with the reason it did not. A property test drives arbitrary bytes at the dispatcher
 and checks that exactly one well formed response comes back every time.
+
+> **Editorial note, 27 September 2026.** The sentence above about batches was true when
+> this record was written and is no longer: record 10 implemented them. The decision this
+> record makes is unaffected, since a batch is a line of requests and every one of them
+> still gets a response. Nothing else here has been changed.

@@ -218,6 +218,21 @@
           "type": "string"
         },
         {
+          "const": "BATCH_EMPTY",
+          "description": "The message is an empty JSON array, which asks for nothing.",
+          "type": "string"
+        },
+        {
+          "const": "DUPLICATE_ID",
+          "description": "Two elements of one batch carry the same id.",
+          "type": "string"
+        },
+        {
+          "const": "ID_IN_FLIGHT",
+          "description": "The id of the request belongs to a call this session has not answered yet.",
+          "type": "string"
+        },
+        {
           "const": "METHOD_NOT_FOUND",
           "description": "The `method` of the request is not registered.",
           "type": "string"
@@ -230,6 +245,11 @@
         {
           "const": "MESSAGE_TOO_LARGE",
           "description": "A request line went past the 16 MiB limit.",
+          "type": "string"
+        },
+        {
+          "const": "BATCH_TOO_LARGE",
+          "description": "A batch holds more elements than one line may carry.",
           "type": "string"
         },
         {
@@ -248,11 +268,6 @@
           "type": "string"
         },
         {
-          "const": "BATCH_NOT_SUPPORTED",
-          "description": "The message is a JSON array, and `solar/1` does not implement batches.",
-          "type": "string"
-        },
-        {
           "const": "HANDLER_PANIC",
           "description": "An API panicked, and dispatch caught the unwind.",
           "type": "string"
@@ -265,6 +280,11 @@
         {
           "const": "INVARIANT_BROKEN",
           "description": "SOLAR checked something that cannot be false, and it was false.",
+          "type": "string"
+        },
+        {
+          "const": "CALL_CANCELLED",
+          "description": "The caller cancelled the call, and it stopped.",
           "type": "string"
         }
       ]
@@ -370,6 +390,11 @@
         {
           "const": "INTERNAL",
           "description": "A bug in SOLAR. A panic reaches the caller as this.",
+          "type": "string"
+        },
+        {
+          "const": "CANCELLED",
+          "description": "The caller asked for the call to stop, and it stopped.",
           "type": "string"
         },
         {

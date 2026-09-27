@@ -50,11 +50,18 @@ MCP use. No HTTP, no port, no gRPC.
 <-- {"jsonrpc": "2.0", "id": 1, "result": {"data": {...}, "meta": {...}, "warnings": []}}
 ```
 
-Two deviations from JSON-RPC 2.0, both deliberate and both in the contract:
+One deviation from JSON-RPC 2.0, deliberate and in the contract: **notifications are
+refused.** A message without `id` gets an error with `id: null`, because every call gets a
+response.
 
-- **Notifications are refused.** A message without `id` gets an error with `id: null`,
-  because every call gets a response.
-- **Batches are `UNIMPLEMENTED`** in `solar/1`. Send one request per line instead.
+Batches work, and are stricter than the specification allows. A line holding an array of
+requests gets one line back holding the array of responses, **in the order of the
+requests**, each with its own `meta`, up to 64 elements:
+
+```text
+--> [{"jsonrpc":"2.0","id":1,"method":"solar.ping"},{"jsonrpc":"2.0","id":2,"method":"solar.version"}]
+<-- [{"jsonrpc":"2.0","id":1,"result":{...}},{"jsonrpc":"2.0","id":2,"result":{...}}]
+```
 
 An error carries a canonical status, the same eleven Google and gRPC use, a finer grained
 reason, and details that name the position, what was expected, what arrived, and what to do:

@@ -19,7 +19,7 @@ use crate::context::Context;
 use crate::error::{ErrorDetail, SolarError};
 use crate::logging;
 use crate::meta::Meta;
-use crate::protocol::{Request, Response, parse_request};
+use crate::protocol::{Incoming, Request, RequestError, Response, parse_request, read_line};
 use crate::reason::Reason;
 use crate::registry::{Registry, RegistryProblem};
 use crate::status::Status;
@@ -109,6 +109,25 @@ enum State {
     Broken(Vec<RegistryProblem>),
 }
 
+/// One line of output, and how many requests it answers.
+///
+/// A single request answers with one response and `calls` is one; a batch answers with an
+/// array and `calls` is the number of elements in it, which is what a session counts.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Answer {
+    /// The line to write, without its newline.
+    pub line: String,
+    /// How many requests this line answers.
+    pub calls: usize,
+}
+
+impl Answer {
+    /// The answer to a single request.
+    fn one(line: String) -> Self {
+        Self { line, calls: 1 }
+    }
+}
+
 /// Turns requests into responses.
 ///
 /// A dispatcher is cheap to clone through its `Arc` and is safe to share: it holds nothing
@@ -150,7 +169,11 @@ impl Dispatcher {
         }
     }
 
-    /// Reads one line and answers it. This is the whole protocol in one call.
+    /// Reads one line and answers it, as one response.
+    ///
+    /// A batch answers with an array, which is not a [`Response`], so this is the call
+    /// for a single request and the one every test and benchmark uses.
+    /// [`Dispatcher::answer_line`] is the one a session uses.
     #[must_use]
     pub fn handle_line(&self, line: &str) -> Response {
         let started_at = clock::now_rfc3339_micros();
@@ -158,17 +181,71 @@ impl Dispatcher {
 
         match parse_request(line) {
             Ok(request) => self.run(request, started_at, start),
-            Err(failed) => {
-                let meta = Meta::new(
-                    failed.id.clone(),
-                    failed.method.clone(),
-                    None,
-                    started_at,
-                    elapsed_us(start),
-                );
-                Response::failure(failed.id, failed.error, meta)
+            Err(failed) => Self::refuse(failed, started_at, start),
+        }
+    }
+
+    /// Reads one line and answers it, as the line that goes back on the wire.
+    ///
+    /// One request answers with one response; a batch answers with an array of
+    /// responses, in the order of the requests, which is section 3.2 of the contract.
+    ///
+    /// ```
+    /// # use std::sync::Arc;
+    /// # use solar_core::dispatch::Dispatcher;
+    /// # use solar_core::registry::RegistryBuilder;
+    /// let dispatcher = Dispatcher::new(Arc::new(RegistryBuilder::new().build().unwrap()));
+    /// let answer = dispatcher.answer_line(
+    ///     r#"[{"jsonrpc":"2.0","id":1,"method":"a.b"},{"jsonrpc":"2.0","id":2,"method":"a.b"}]"#,
+    /// );
+    /// assert_eq!(answer.calls, 2);
+    /// assert!(answer.line.starts_with('['));
+    /// ```
+    #[must_use]
+    pub fn answer_line(&self, line: &str) -> Answer {
+        let started_at = clock::now_rfc3339_micros();
+        let start = Instant::now();
+
+        match read_line(line) {
+            Incoming::One(Ok(request)) => {
+                Answer::one(self.run(request, started_at, start).to_line())
+            }
+            Incoming::One(Err(failed)) | Incoming::Refused(failed) => {
+                Answer::one(Self::refuse(*failed, started_at, start).to_line())
+            }
+            Incoming::Batch(elements) => {
+                let calls = elements.len();
+                // One at a time, in order, each with a `meta` of its own.
+                let answers: Vec<Value> = elements
+                    .into_iter()
+                    .map(|element| {
+                        let at = clock::now_rfc3339_micros();
+                        let began = Instant::now();
+                        let response = match element {
+                            Ok(request) => self.run(request, at, began),
+                            Err(failed) => Self::refuse(*failed, at, began),
+                        };
+                        serde_json::to_value(&response).unwrap_or(Value::Null)
+                    })
+                    .collect();
+                Answer {
+                    line: serde_json::to_string(&answers).unwrap_or_else(|_| "[]".to_owned()),
+                    calls,
+                }
             }
         }
+    }
+
+    /// The response a line that never became a request deserves.
+    fn refuse(failed: RequestError, started_at: String, start: Instant) -> Response {
+        let meta = Meta::new(
+            failed.id.clone(),
+            failed.method.clone(),
+            None,
+            started_at,
+            elapsed_us(start),
+        );
+        Response::failure(failed.id, failed.error, meta)
     }
 
     /// Answers a request that has already passed the envelope checks.
@@ -318,7 +395,7 @@ thread_local! {
 ///
 /// Three things can come back: an output, an error the handler built, or a panic. A fourth
 /// case is that nothing comes back in time, and that is what the budget is for. The thread
-/// is abandoned rather than killed, which section 9 of the contract states plainly,
+/// is abandoned rather than killed, which section 10 of the contract states plainly,
 /// because there is no safe way to kill a thread in Rust. An abandoned thread is never
 /// reused: the worker is dropped, and the next call starts a fresh one.
 fn run_with_budget(

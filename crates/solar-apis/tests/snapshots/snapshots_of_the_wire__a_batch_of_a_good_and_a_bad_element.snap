@@ -1,0 +1,62 @@
+---
+source: crates/solar-apis/tests/snapshots_of_the_wire.rs
+assertion_line: 92
+expression: "answer(&\nr#\"[{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"solar.ping\"},{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"solar.pign\"}]\"#)"
+---
+[
+  {
+    "id": 1,
+    "jsonrpc": "2.0",
+    "result": {
+      "data": {
+        "echo": null,
+        "pong": true,
+        "received_at": "[timestamp]"
+      },
+      "meta": {
+        "api_version": "1.0.0",
+        "arch": "[arch]",
+        "duration_us": "[duration]",
+        "method": "solar.ping",
+        "os": "[os]",
+        "protocol": "solar/1",
+        "request_id": 1,
+        "solar_version": "[version]",
+        "started_at": "[timestamp]"
+      },
+      "warnings": []
+    }
+  },
+  {
+    "error": {
+      "code": -32601,
+      "data": {
+        "details": [
+          {
+            "docs": "docs/ERRORS.md#not_found",
+            "expected": "solar.ping",
+            "field": "method",
+            "hint": "Did you mean \"solar.ping\"? The edit distance is 2.",
+            "received": "solar.pign"
+          }
+        ],
+        "meta": {
+          "api_version": null,
+          "arch": "[arch]",
+          "duration_us": "[duration]",
+          "method": "solar.pign",
+          "os": "[os]",
+          "protocol": "solar/1",
+          "request_id": 2,
+          "solar_version": "[version]",
+          "started_at": "[timestamp]"
+        },
+        "reason": "METHOD_NOT_FOUND",
+        "status": "NOT_FOUND"
+      },
+      "message": "Method not found: solar.pign."
+    },
+    "id": 2,
+    "jsonrpc": "2.0"
+  }
+]

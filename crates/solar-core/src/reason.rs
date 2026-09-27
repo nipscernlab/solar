@@ -57,26 +57,34 @@ reasons! {
         "The type is right and the value is not usable.";
     NotificationNotSupported => "NOTIFICATION_NOT_SUPPORTED", Status::InvalidArgument,
         "The message has no `id`, and SOLAR does not accept notifications.";
+    BatchEmpty => "BATCH_EMPTY", Status::InvalidArgument,
+        "The message is an empty JSON array, which asks for nothing.";
+    DuplicateId => "DUPLICATE_ID", Status::InvalidArgument,
+        "Two elements of one batch carry the same id.";
+    IdInFlight => "ID_IN_FLIGHT", Status::InvalidArgument,
+        "The id of the request belongs to a call this session has not answered yet.";
     MethodNotFound => "METHOD_NOT_FOUND", Status::NotFound,
         "The `method` of the request is not registered.";
     ApiNotFound => "API_NOT_FOUND", Status::NotFound,
         "An API was asked about by name and is not registered.";
     MessageTooLarge => "MESSAGE_TOO_LARGE", Status::ResourceExhausted,
         "A request line went past the 16 MiB limit.";
+    BatchTooLarge => "BATCH_TOO_LARGE", Status::ResourceExhausted,
+        "A batch holds more elements than one line may carry.";
     HandlerTimeout => "HANDLER_TIMEOUT", Status::DeadlineExceeded,
         "The API did not finish within the `timeout_ms` it declares.";
     ThreadSpawnFailed => "THREAD_SPAWN_FAILED", Status::Unavailable,
         "SOLAR could not start the worker thread a call runs on.";
     EnvironmentUnavailable => "ENVIRONMENT_UNAVAILABLE", Status::Unavailable,
         "SOLAR could not read something about its own process that it needs.";
-    BatchNotSupported => "BATCH_NOT_SUPPORTED", Status::Unimplemented,
-        "The message is a JSON array, and `solar/1` does not implement batches.";
     HandlerPanic => "HANDLER_PANIC", Status::Internal,
         "An API panicked, and dispatch caught the unwind.";
     SerializationFailed => "SERIALIZATION_FAILED", Status::Internal,
         "The API produced a value that could not be turned into JSON.";
     InvariantBroken => "INVARIANT_BROKEN", Status::Internal,
         "SOLAR checked something that cannot be false, and it was false.";
+    CallCancelled => "CALL_CANCELLED", Status::Cancelled,
+        "The caller cancelled the call, and it stopped.";
 }
 
 impl Reason {
