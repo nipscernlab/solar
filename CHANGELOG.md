@@ -63,6 +63,11 @@ protocol is stated here in its own line.
 - `cargo xtask manifest` and `cargo xtask new-api <name>`.
 - `docs/CONTRACT.md`, `docs/ERRORS.md`, `docs/ADDING_AN_API.md` and
   `docs/OPEN_QUESTIONS.md`.
+- `docs/TESTING_BY_HAND.md`, written for somebody who has never used Rust: installing the
+  toolchain, building, running every check with one command, the calls worth making by
+  hand with what each should print, what only a Mac can confirm, and exactly what to send
+  back when something fails. The interactive half is ZENITH's guide, which it points at
+  rather than repeats.
 - Continuous integration on Linux, Windows and macOS, with the toolchain pinned by
   `rust-toolchain.toml`, every cargo command `--locked`, a weekly early-warning job on the
   latest stable and a weekly proof of the declared minimum.

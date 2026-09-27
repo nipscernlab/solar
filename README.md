@@ -74,6 +74,9 @@ solar call solar.ping '{"mesage":"hi"}' || echo "exit $?"
 {"jsonrpc":"2.0","id":1,"error":{"code":-32602,"message":"Invalid params for solar.ping: unknown field `mesage`, expected `message`.","data":{"status":"INVALID_ARGUMENT","reason":"UNKNOWN_FIELD","details":[{"field":"/mesage","expected":"one of: message","received":"hi","hint":"There is no mesage parameter. Did you mean message? A call that works: {\"message\":\"hi\"}.","docs":"docs/ERRORS.md#invalid_argument"}],"meta":{"request_id":1,"method":"solar.ping","api_version":"1.0.0","solar_version":"0.1.0","protocol":"solar/1","started_at":"2026-09-27T02:58:14.846800Z","duration_us":71,"os":"windows","arch":"x86_64"}}}}
 ```
 
+Testing it by hand, from installing the toolchain to what to send back when something
+fails, is [docs/TESTING_BY_HAND.md](docs/TESTING_BY_HAND.md).
+
 The whole contract is [docs/CONTRACT.md](docs/CONTRACT.md), and it is normative. The error
 catalogue is [docs/ERRORS.md](docs/ERRORS.md).
 
