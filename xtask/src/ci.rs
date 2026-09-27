@@ -79,6 +79,9 @@ pub(crate) fn run(root: &Path) -> Result<(), String> {
         ),
         documentation(root),
         step("manifest", || crate::manifest_check(root)),
+        // What CI compares on a pull request; locally, against main, which is what a
+        // pull request from this branch would be compared with.
+        step("compatibility", || crate::compat::run(root, "main")),
         // The blocks of the documentation call `cargo xtask`, which would relink the
         // running binary, so they build where the other nested commands build.
         step("documentation runs", || {

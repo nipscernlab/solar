@@ -91,6 +91,14 @@ jobs:
       - name: The manifest is not stale
         run: cargo run --package xtask --locked --quiet -- manifest --check
 
+      # What a caller written against the base branch would notice, and whether the
+      # version of each API answers for it. Only on a pull request, where there is a base.
+      - name: The manifest stays compatible
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch --no-tags --depth=1 origin "${{ github.base_ref }}"
+          cargo run --package xtask --locked --quiet -- compat "origin/${{ github.base_ref }}"
+
       - name: Release build
         run: cargo build --workspace --release --locked
 

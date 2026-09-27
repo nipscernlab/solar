@@ -19,7 +19,7 @@ use std::path::{Path, PathBuf};
 ///
 /// The workflow needles are whole `run:` lines, because a looser needle matches the step
 /// that installs a tool rather than the step that runs it.
-const CHECKS: [(&str, &str, &str); 10] = [
+const CHECKS: [(&str, &str, &str); 11] = [
     (
         "formatting",
         "run: cargo fmt --all -- --check",
@@ -52,6 +52,7 @@ const CHECKS: [(&str, &str, &str); 10] = [
         r#""documentation""#,
     ),
     ("manifest", "-- manifest --check", r#""manifest""#),
+    ("compatibility", "-- compat ", r#""compatibility""#),
     (
         "documentation runs",
         "-- doc-run",
@@ -64,7 +65,7 @@ const CHECKS: [(&str, &str, &str); 10] = [
 ///
 /// `documentation` is missing on purpose: it is a job of its own, which runs beside the
 /// others rather than among them, so where it sits in the file says nothing.
-const ORDERED: [&str; 9] = [
+const ORDERED: [&str; 10] = [
     "formatting",
     "toml formatting",
     "spelling",
@@ -72,6 +73,7 @@ const ORDERED: [&str; 9] = [
     "tests",
     "doctests",
     "manifest",
+    "compatibility",
     "documentation runs",
     "no local paths",
 ];

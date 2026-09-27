@@ -67,12 +67,15 @@ jobs:
 
       # Three minutes per target, from the corpus in the repository. Long enough to catch
       # what a change broke, short enough to run every week without anyone minding.
+      #
+      # The target is named because the prebuilt cargo-fuzz defaults to the triple it was
+      # itself built for, musl, whose standard library the runner does not carry.
       - name: Fuzz the envelope parser
-        run: cargo fuzz run envelope -- -max_total_time=180 -timeout=10
+        run: cargo fuzz run --target x86_64-unknown-linux-gnu envelope -- -max_total_time=180 -timeout=10
       - name: Fuzz parameter decoding
-        run: cargo fuzz run parameters -- -max_total_time=180 -timeout=10
+        run: cargo fuzz run --target x86_64-unknown-linux-gnu parameters -- -max_total_time=180 -timeout=10
       - name: Fuzz the session loop
-        run: cargo fuzz run session -- -max_total_time=180 -timeout=10
+        run: cargo fuzz run --target x86_64-unknown-linux-gnu session -- -max_total_time=180 -timeout=10
 
       - name: Keep whatever crashed
         if: failure()

@@ -19,6 +19,7 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 mod ci;
+mod compat;
 mod doc_run;
 mod flags;
 mod leak_check;
@@ -35,6 +36,11 @@ fn main() -> ExitCode {
     let outcome = match task {
         "manifest" => manifest(rest.contains(&"--check")),
         "ci" => ci::run(&root()),
+        "compat" => match rest.first() {
+            Some(base) if !base.starts_with('-') => compat::run(&root(), base),
+            // `main` is what a pull request is compared against by default.
+            _ => compat::run(&root(), "main"),
+        },
         "doc-run" => doc_run::run(&root(), &flags::target_dir(&root())),
         "leak-check" => leak_check::run(&root(), &flags::target_dir(&root())),
         "new-api" => match rest.first() {
@@ -70,6 +76,8 @@ cargo xtask <task>
   manifest            regenerate manifest/solar.manifest.json from the registry
   manifest --check    report whether the versioned manifest is stale, write nothing
   ci                  everything CI runs, in the same order, with a summary
+  compat [<base>]     what changed in the manifest against <base>, default main, and
+                      whether the version of each API answers for it
   doc-run             run every shell-tagged block of the documentation in its shell
   leak-check          prove the release binary embeds no local path
   new-api <name>      write a new API from the template and register it
