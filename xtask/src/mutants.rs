@@ -35,13 +35,16 @@ pub(crate) fn run(root: &Path, arguments: &[&str]) -> Result<(), String> {
         .args(["mutants", "--no-shuffle", "--output"])
         .arg(&output)
         .args(arguments)
-        .current_dir(root)
-        // Its own target directory, like every other nested build: the running xtask
-        // binary must not be relinked underneath itself.
-        .env(
-            "CARGO_TARGET_DIR",
-            crate::flags::target_dir(root).join("ci"),
-        );
+        .current_dir(root);
+
+    // No CARGO_TARGET_DIR here, on purpose, and it is not an oversight to be tidied up.
+    // cargo-mutants copies the source tree once per job and builds each copy in that
+    // copy's own target directory. One shared target directory makes cargo reuse a test
+    // binary built in another copy, and a test binary carries the `CARGO_MANIFEST_DIR`
+    // of the tree that compiled it: `tests/docs.rs` then reads the contract out of a
+    // directory that has already been deleted, and a mutant can be judged by an artefact
+    // built from a different mutant. The running xtask binary is safe without it,
+    // because nothing here builds in the real tree.
 
     let status = command.status().map_err(|failure| {
         format!(

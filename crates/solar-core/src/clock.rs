@@ -74,6 +74,80 @@ mod tests {
         format_rfc3339_micros(UNIX_EPOCH + Duration::new(secs, micros * 1000))
     }
 
+    /// The same conversion, written the obvious way: walk the years, then the months.
+    ///
+    /// Slow, and correct by inspection, which is the point. Hinnant's algorithm is fast
+    /// and correct by an argument about shifted eras that nobody should have to redo
+    /// while reading a test. Checking one against the other is what makes the clever one
+    /// trustworthy, including for the era before the epoch that the fast path treats
+    /// separately.
+    fn walk_to_the_date(mut days: i64) -> (i64, u32, u32) {
+        const fn leap(year: i64) -> bool {
+            (year % 4 == 0 && year % 100 != 0) || year % 400 == 0
+        }
+        const fn length(year: i64) -> i64 {
+            if leap(year) { 366 } else { 365 }
+        }
+
+        let mut year: i64 = 1970;
+        while days < 0 || days >= length(year) {
+            if days >= length(year) {
+                days -= length(year);
+                year += 1;
+            } else {
+                year -= 1;
+                days += length(year);
+            }
+        }
+
+        let months: [i64; 12] = [
+            31,
+            if leap(year) { 29 } else { 28 },
+            31,
+            30,
+            31,
+            30,
+            31,
+            31,
+            30,
+            31,
+            30,
+            31,
+        ];
+        let mut month = 1u32;
+        for length in months {
+            if days < length {
+                break;
+            }
+            days -= length;
+            month += 1;
+        }
+        (year, month, u32::try_from(days + 1).unwrap_or(1))
+    }
+
+    #[test]
+    fn the_fast_calendar_agrees_with_the_obvious_one() {
+        for days in [
+            0, // 1970-01-01
+            1, -1,       // the day before the epoch
+            59,       // 1970-03-01, just past the shifted era boundary
+            10_957,   // 2000-01-01, a leap year that a century rule would miss
+            19_723,   // 2024-01-01
+            -25_567,  // 1900-01-01, a century that is not a leap year
+            -719_162, // 0001-01-01, the first day of year one
+            -719_468, // 0000-03-01, where the shifted era begins
+            -719_469, // one day earlier, which is where the negative branch starts
+            -800_000, // deep in the negative era
+            -1_000_000, 2_932_896, // 9999-12-31
+        ] {
+            assert_eq!(
+                civil_from_days(days),
+                walk_to_the_date(days),
+                "day {days} is not the same date both ways"
+            );
+        }
+    }
+
     #[test]
     fn the_epoch_is_the_first_of_january_nineteen_seventy() {
         assert_eq!(at(0, 0), "1970-01-01T00:00:00.000000Z");

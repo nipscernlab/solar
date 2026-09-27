@@ -192,6 +192,40 @@ mod tests {
     }
 
     #[test]
+    fn time_really_passes_for_a_call() {
+        let ctx = context(Duration::from_millis(500));
+        std::thread::sleep(Duration::from_millis(5));
+        assert!(
+            ctx.elapsed() >= Duration::from_millis(5),
+            "elapsed is how long the call has taken, not zero: {:?}",
+            ctx.elapsed()
+        );
+        assert!(
+            ctx.remaining() < Duration::from_millis(500),
+            "what is left is the budget minus what has passed: {:?}",
+            ctx.remaining()
+        );
+        assert!(ctx.remaining() > Duration::ZERO, "and it is not spent yet");
+    }
+
+    #[test]
+    fn a_context_sees_the_session_it_was_given_and_no_other() {
+        let plain = context(Duration::from_millis(500));
+        assert!(
+            plain.session().is_none(),
+            "a call outside a session has no session to see"
+        );
+
+        let session = Arc::new(crate::session::SessionState::new());
+        let inside = context(Duration::from_millis(500)).in_session(Arc::clone(&session));
+        let seen = inside.session().expect("a call inside a session sees it");
+        assert!(
+            Arc::ptr_eq(seen, &session),
+            "the session it sees is the one it was given, not another one"
+        );
+    }
+
+    #[test]
     fn a_context_nobody_holds_the_token_of_is_never_cancelled() {
         let ctx = context(Duration::from_millis(500));
         assert!(!ctx.is_cancelled());

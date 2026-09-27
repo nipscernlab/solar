@@ -213,6 +213,17 @@ fn a_broken_registry_answers_every_call_instead_of_taking_the_process_down() {
     assert!(dispatcher.registry().is_none());
 }
 
+#[test]
+fn a_dispatcher_that_built_hands_out_the_registry_it_was_given() {
+    let dispatcher = dispatcher();
+    let registry = dispatcher
+        .registry()
+        .expect("a dispatcher that built has a registry");
+    assert_eq!(registry.len(), 3, "the three APIs of this test file");
+    let names: Vec<&str> = registry.names().collect();
+    assert!(names.contains(&"test.works"), "{names:?}");
+}
+
 /// An API whose output is far larger than the size it declares.
 struct Floods;
 
@@ -287,5 +298,39 @@ fn a_response_larger_than_the_api_declares_is_refused() {
     assert_eq!(
         response["result"]["data"]["text"].as_str().unwrap().len(),
         64
+    );
+}
+
+#[test]
+fn a_call_whose_token_is_already_set_is_answered_without_running() {
+    use solar_core::cancel::Cancellation;
+    use solar_core::dispatch::InSession;
+    use solar_core::protocol::parse_request;
+
+    let dispatcher = dispatcher();
+    let cancelled = Cancellation::new();
+    cancelled.cancel();
+
+    // `test.hangs` sleeps for five seconds. If the handler ran at all, this test would
+    // take that long and answer DEADLINE_EXCEEDED instead.
+    let request = parse_request(r#"{"jsonrpc":"2.0","id":1,"method":"test.hangs"}"#)
+        .expect("a well formed request");
+    let started = Instant::now();
+    let response = dispatcher.dispatch_in_session(
+        request,
+        "2026-09-27T00:00:00.000000Z".to_owned(),
+        started,
+        &InSession {
+            cancellation: cancelled,
+            session: None,
+        },
+    );
+
+    let answered: Value = serde_json::from_str(&response.to_line()).expect("a response is JSON");
+    assert_eq!(answered["error"]["data"]["status"], "CANCELLED");
+    assert_eq!(answered["error"]["data"]["reason"], "CALL_CANCELLED");
+    assert!(
+        started.elapsed() < Duration::from_secs(1),
+        "the handler must not have run at all"
     );
 }

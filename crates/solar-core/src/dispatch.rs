@@ -100,9 +100,21 @@ pub fn install_panic_hook() {
 /// Capturing one costs milliseconds and prints twenty lines, so it happens when somebody
 /// has asked: `RUST_BACKTRACE` set to anything but `0`, or a log level of debug or finer.
 fn wants_a_backtrace() -> bool {
-    let asked =
-        std::env::var("RUST_BACKTRACE").is_ok_and(|value| !value.is_empty() && value != "0");
-    asked || logging::level() >= logging::Level::Debug
+    backtrace_wanted(
+        std::env::var("RUST_BACKTRACE").ok().as_deref(),
+        logging::level(),
+    )
+}
+
+/// The decision itself, with the environment passed in rather than read.
+///
+/// Split out so that it can be tested: a test cannot set an environment variable, because
+/// `std::env::set_var` is `unsafe` in edition 2024 and unsafe code is denied here. What
+/// the rule is worth testing for is every combination of what the variable holds and what
+/// the level is, and that is all here.
+fn backtrace_wanted(asked: Option<&str>, level: logging::Level) -> bool {
+    let asked = asked.is_some_and(|value| !value.is_empty() && value != "0");
+    asked || level >= logging::Level::Debug
 }
 
 /// What a panicking handler left behind.
@@ -408,7 +420,14 @@ impl Dispatcher {
         }
         let ctx = Arc::new(context);
 
-        let outcome = run_with_budget(&ctx, entry.name(), typed, budget);
+        // A call cancelled between leaving the queue and starting is answered without
+        // running: the handler would only be told to stop at its first safe point, and
+        // the first safe point of a call that has not begun is not beginning.
+        let outcome = if ctx.is_cancelled() {
+            Err(ctx.cancelled())
+        } else {
+            run_with_budget(&ctx, entry.name(), typed, budget)
+        };
         let duration_us = elapsed_us(start);
         let warnings = ctx.warnings();
         let meta = Meta::new(
@@ -724,4 +743,44 @@ fn timeout_error(name: &str, budget: Duration) -> SolarError {
                  solar.describe reports. The work was abandoned, not undone.",
             ),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::logging::Level;
+
+    #[test]
+    fn a_backtrace_is_printed_only_when_somebody_asked_for_one() {
+        // The variable is unset: only a level of debug or finer asks for a backtrace.
+        assert!(!backtrace_wanted(None, Level::Off));
+        assert!(!backtrace_wanted(None, Level::Error));
+        assert!(!backtrace_wanted(None, Level::Warn));
+        assert!(!backtrace_wanted(None, Level::Info));
+        assert!(backtrace_wanted(None, Level::Debug));
+        assert!(backtrace_wanted(None, Level::Trace));
+
+        // The variable is set to something that means no.
+        assert!(!backtrace_wanted(Some(""), Level::Info));
+        assert!(!backtrace_wanted(Some("0"), Level::Info));
+
+        // And to something that means yes, whatever the level is.
+        assert!(backtrace_wanted(Some("1"), Level::Off));
+        assert!(backtrace_wanted(Some("full"), Level::Off));
+        assert!(backtrace_wanted(Some("anything at all"), Level::Error));
+
+        // A level that asks wins over a variable that does not.
+        assert!(backtrace_wanted(Some("0"), Level::Debug));
+    }
+
+    #[test]
+    fn what_the_process_asks_for_is_what_the_hook_reads() {
+        // The wrapper reads the environment and the level and decides nothing else, which
+        // is what this pins: the two must agree for whatever this process happens to have.
+        let expected = backtrace_wanted(
+            std::env::var("RUST_BACKTRACE").ok().as_deref(),
+            logging::level(),
+        );
+        assert_eq!(wants_a_backtrace(), expected);
+    }
 }

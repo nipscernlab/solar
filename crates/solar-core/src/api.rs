@@ -256,3 +256,20 @@ pub trait Api: 'static {
     /// declared is a bug that the contract tests are meant to catch.
     fn call(ctx: &Context, params: Self::Params) -> Result<Self::Output, SolarError>;
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_default_output_size_is_the_number_the_contract_states() {
+        // Written as a plain number, because the point is that eight mebibytes is what
+        // section 8.3 says, not that one arithmetic expression equals itself.
+        assert_eq!(DEFAULT_MAX_OUTPUT_BYTES, 8_388_608);
+        assert_eq!(
+            DEFAULT_MAX_OUTPUT_BYTES * 2,
+            crate::protocol::MAX_REQUEST_BYTES as u64,
+            "the default is half the request line limit, which is what makes it a              ceiling a response can always be written under"
+        );
+    }
+}

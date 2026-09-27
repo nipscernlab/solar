@@ -91,6 +91,49 @@ mod tests {
     }
 
     #[test]
+    fn a_build_that_knows_everything_is_complete_and_one_that_does_not_is_not() {
+        let known = BuildInfo {
+            git_commit: "3b06d3bd0e0f",
+            git_commit_short: "3b06d3bd0e0f",
+            git_dirty: "false",
+            rustc_version: "rustc 1.97.1",
+            profile: "release",
+            target: "x86_64-pc-windows-msvc",
+        };
+        assert!(known.is_complete());
+
+        // One unknown member is enough, and the profile is not one of the five looked at,
+        // because cargo always sets it.
+        for spoiled in [
+            BuildInfo {
+                git_commit: UNKNOWN,
+                ..known
+            },
+            BuildInfo {
+                git_commit_short: UNKNOWN,
+                ..known
+            },
+            BuildInfo {
+                git_dirty: UNKNOWN,
+                ..known
+            },
+            BuildInfo {
+                rustc_version: UNKNOWN,
+                ..known
+            },
+            BuildInfo {
+                target: UNKNOWN,
+                ..known
+            },
+        ] {
+            assert!(
+                !spoiled.is_complete(),
+                "{spoiled:?} is not a complete build"
+            );
+        }
+    }
+
+    #[test]
     fn missing_lists_exactly_what_is_unknown() {
         let info = BuildInfo {
             git_commit: UNKNOWN,

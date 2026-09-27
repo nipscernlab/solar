@@ -377,6 +377,10 @@ A handler receives a cancellation token through its [`Context`] and checks it at
 where stopping is safe. A handler that never checks is not a special case: it runs to its
 end, or past its budget, and section 10 already says what happens then.
 
+**Dispatch checks the token once before the handler starts.** A call cancelled between
+leaving the queue and beginning is answered `CANCELLED` without running, because the first
+safe point of a call that has not begun is not beginning.
+
 Cancelling is a request, not a command. A handler that has already produced its result
 returns it, and the caller is told `already_finished`.
 

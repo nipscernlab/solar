@@ -6,9 +6,13 @@ out, and what would make it worth revisiting.
 
 **What is settled has moved.** A decision the architect has confirmed becomes a record in
 [`adr/`](adr/) and leaves this file, so that this file is only ever the list of things
-still open to being overruled. The nine records there cover the transport, the two
-deviations from JSON-RPC, the shape of a response, the naming rule, stability, the
-timeout and the worker thread.
+still open to being overruled. The eleven records there cover the transport, the
+deviation from JSON-RPC, the shape of a response, the naming rule, stability, the
+timeout, the worker thread, batches and cancellation.
+
+**Every entry below has a proposal in [`../STATUS.md`](../STATUS.md)**, with its options
+and what each one costs, so that they can be decided in one reading rather than one at a
+time.
 
 The entries below are grouped by where the decision shows up.
 
@@ -72,13 +76,19 @@ follows on that line would then be parsed as new messages. Nothing oversized is 
 in memory, which is the part that matters, and the stream stays aligned so the next
 message is answered normally.
 
-### The session is strictly sequential
+### The session reads ahead, and still runs one call at a time
 
-One request is read, dispatched and answered before the next is read.
+**Superseded on 27 September 2026 by record [11](adr/0011-cancelling-is-an-ordinary-call.md),
+and kept here because what it says about ordering is still true.**
 
-**Why.** Responses come back in request order, so no caller has to correlate anything, and
-there is no shared state to get wrong. Concurrency is a protocol change, not an
-implementation detail, and it is not needed by any interface that exists today.
+It used to say that one request was read, dispatched and answered before the next was
+read. Cancellation made that impossible: a `solar.cancel` sent while a call was running
+would have waited in the pipe until the call it was cancelling had finished.
+
+A session now reads on a thread of its own, into a bounded queue. **Calls still run one at
+a time, in the order they arrived**, so a client that never cancels sees its responses in
+the order of its requests, which is what the old entry was protecting and is now a test.
+What changed is only that reading no longer waits for running.
 
 ## The APIs
 
@@ -283,6 +293,16 @@ denied. The cost is one extra build tree, cached like any other; the first run o
 `xtask ci` after a change to the sources is slower than the second. CI itself runs the
 cargo commands directly, where nothing is running from the tree, so it keeps the default
 directory.
+
+**One place it was wrong, found on 27 September 2026 and fixed.** The same environment
+variable was also given to `cargo mutants`, which does not build in the real tree at all:
+it copies the sources once per job and builds each copy. One shared target directory made
+cargo reuse a test binary built in another copy, and a test binary carries the
+`CARGO_MANIFEST_DIR` of the tree that compiled it, so `tests/docs.rs` went looking for the
+contract in a directory that had already been deleted. Worse than the failure was what it
+implied: a mutant could be judged by an artefact built from a different mutant. The
+variable is gone from the mutation task, with a comment saying why it is not an oversight,
+and the mutation score was measured again from scratch.
 
 ### `loom` is not adopted, and here is what it would have to model
 

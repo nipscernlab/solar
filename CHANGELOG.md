@@ -41,6 +41,12 @@ protocol is stated here in its own line.
   resident memory of the server. The figures are in the README.
 - `crates/solar-apis/tests/heap.rs`, which counts what one `solar.ping` allocates with
   `dhat` and holds a ceiling, so a change that allocates more has to say why.
+- Tests for lines that nothing checked, found by mutation testing: the value of
+  `DEFAULT_MAX_OUTPUT_BYTES`, `BuildInfo::is_complete` in both directions, the calendar
+  before the epoch checked against an obvious implementation written beside it,
+  `Context::elapsed`, `Context::remaining` and `Context::session`, the registry a built
+  dispatcher hands out, and the rule for printing a backtrace, which was split from the
+  environment it reads so that every combination could be tested.
 - `cargo xtask changelog [<base>]`, and the same step in CI: a change under `crates/`
   comes with an entry here. It is the part a machine can check of the fixed rule that
   code and documentation move together, which `AGENTS.md` states and the pull request
