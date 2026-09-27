@@ -335,6 +335,43 @@ pub fn render(registry: &Registry) -> String {
 mod tests {
     use super::*;
     use crate::registry::RegistryBuilder;
+    use serde_json::json;
+
+    #[test]
+    fn two_different_definitions_of_one_name_are_both_kept_and_numbered() {
+        // Nothing generates this today, and silently keeping one of them would be the
+        // worst possible answer, so the second is renamed and the reference follows.
+        let mut defs = serde_json::Map::new();
+        defs.insert("Thing".to_owned(), json!({"type": "string"}));
+        defs.insert("Thing_2".to_owned(), json!({"type": "number"}));
+
+        let mut schema = json!({
+            "type": "object",
+            "$defs": {"Thing": {"type": "boolean"}},
+            "properties": {"a": {"$ref": "#/$defs/Thing"}}
+        });
+        hoist(&mut schema, &mut defs);
+
+        assert_eq!(
+            defs["Thing"],
+            json!({"type": "string"}),
+            "what was there first is untouched"
+        );
+        assert_eq!(
+            defs["Thing_2"],
+            json!({"type": "number"}),
+            "and so is the second"
+        );
+        assert_eq!(
+            defs["Thing_3"],
+            json!({"type": "boolean"}),
+            "the newcomer took the next free number rather than overwriting either"
+        );
+        assert_eq!(
+            schema["properties"]["a"]["$ref"], "#/$defs/Thing_3",
+            "and its reference points at where it really went"
+        );
+    }
 
     #[test]
     fn the_capabilities_are_the_numbers_the_code_enforces() {

@@ -46,16 +46,35 @@ fn read_here() -> Result<Release, String> {
     const PATH: &str = "/System/Library/CoreServices/SystemVersion.plist";
     let text = std::fs::read_to_string(PATH)
         .map_err(|failure| format!("{PATH} could not be read: {failure}"))?;
-    let release = plist_string(&text, "ProductVersion");
-    let build = plist_string(&text, "ProductBuildVersion");
+    system_version_plist(&text, PATH)
+}
+
+/// What a `SystemVersion.plist` says, or why it says nothing.
+///
+/// Compiled everywhere and tested everywhere, although only a Mac has the file: the rule
+/// for reading it is not a property of the machine running the tests, and a mutation run
+/// on Linux cannot judge a line that Linux never compiles.
+///
+/// # Errors
+///
+/// Returns one sentence when the file was read and holds neither the version nor the
+/// build, which is what a binary property list looks like to a parser that reads XML.
+#[allow(
+    dead_code,
+    reason = "only macOS calls this, and the point of splitting it out is that the tests \
+              call it on every system, including the ones where nothing else does"
+)]
+fn system_version_plist(text: &str, path: &str) -> Result<Release, String> {
+    let release = plist_string(text, "ProductVersion");
+    let build = plist_string(text, "ProductBuildVersion");
     if release.is_none() && build.is_none() {
         return Err(format!(
-            "{PATH} was read and holds no ProductVersion this parser recognises; it may be \
+            "{path} was read and holds no ProductVersion this parser recognises; it may be \
              a binary property list"
         ));
     }
     Ok(Release {
-        name: plist_string(&text, "ProductName").or_else(|| Some("macOS".to_owned())),
+        name: plist_string(text, "ProductName").or_else(|| Some("macOS".to_owned())),
         release,
         build,
     })
@@ -64,11 +83,22 @@ fn read_here() -> Result<Release, String> {
 #[cfg(target_os = "windows")]
 fn read_here() -> Result<Release, String> {
     let (major, minor, build) = windows_version()?;
-    Ok(Release {
+    Ok(windows_release(major, minor, build))
+}
+
+/// What the three numbers Windows reports mean to a caller.
+///
+/// Compiled everywhere and tested everywhere, for the same reason as the plist above.
+#[allow(
+    dead_code,
+    reason = "only Windows calls this, and the tests call it on every system"
+)]
+fn windows_release(major: u32, minor: u32, build: u32) -> Release {
+    Release {
         name: Some("Windows".to_owned()),
         release: Some(format!("{major}.{minor}.{build}")),
         build: Some(build.to_string()),
-    })
+    }
 }
 
 /// Every other system: try the os-release specification, which several of them follow.
@@ -432,6 +462,88 @@ ANSI_COLOR="38;2;23;147;209"
             Some("macOS")
         );
         assert_eq!(plist_string(SYSTEM_VERSION, "NotThere"), None);
+    }
+
+    #[test]
+    fn a_system_version_plist_is_read_into_a_release() {
+        let release = system_version_plist(SYSTEM_VERSION, "/a/path").expect("it says what it is");
+        assert_eq!(release.name.as_deref(), Some("macOS"));
+        assert!(release.release.is_some(), "the version is there");
+        assert!(release.build.is_some(), "and the build");
+    }
+
+    #[test]
+    fn a_plist_with_no_name_of_its_own_is_still_macos() {
+        let anonymous = SYSTEM_VERSION.replace("ProductName", "SomethingElse");
+        let release = system_version_plist(&anonymous, "/a/path").expect("the version is there");
+        assert_eq!(
+            release.name.as_deref(),
+            Some("macOS"),
+            "the name falls back to what the file is"
+        );
+    }
+
+    #[test]
+    fn a_plist_with_neither_the_version_nor_the_build_is_an_error() {
+        // What a binary property list looks like to a parser that reads XML: nothing it
+        // recognises. Reporting an empty release would look like an answer.
+        let failure = system_version_plist("bplist00 not xml at all", "/a/path")
+            .expect_err("a file that says nothing is not an answer");
+        assert!(failure.contains("/a/path"), "{failure}");
+        assert!(failure.contains("binary property list"), "{failure}");
+
+        // Either one alone is enough to answer, so neither alone is an error.
+        let build_only = SYSTEM_VERSION.replace("ProductVersion", "SomethingElse");
+        let release = system_version_plist(&build_only, "/a/path").expect("the build is there");
+        assert_eq!(release.release, None);
+        assert!(release.build.is_some());
+    }
+
+    #[test]
+    fn the_three_numbers_windows_reports_become_a_release() {
+        let release = windows_release(10, 0, 26_200);
+        assert_eq!(release.name.as_deref(), Some("Windows"));
+        assert_eq!(
+            release.release.as_deref(),
+            Some("10.0.26200"),
+            "the release is the three of them, in order"
+        );
+        assert_eq!(
+            release.build.as_deref(),
+            Some("26200"),
+            "and the build is the third on its own"
+        );
+
+        // Each number appears where it belongs and nowhere else.
+        let release = windows_release(1, 2, 3);
+        assert_eq!(release.release.as_deref(), Some("1.2.3"));
+        assert_eq!(release.build.as_deref(), Some("3"));
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn windows_really_says_which_windows_it_is() {
+        // The one line of unsafe code in the repository, checked against what it cannot
+        // plausibly return. `RtlGetVersion` is the call SOLAR makes precisely because
+        // `GetVersionEx` lies to a program without a compatibility manifest, so a major
+        // below 6 would mean the lie came back.
+        //
+        // This runs only on Windows, so only a mutation run on Windows can judge the
+        // lines it covers. STATUS.md records that the weekly job runs on Linux.
+        let (major, minor, build) = windows_version().expect("Windows says what it is");
+        assert!(
+            major >= 6,
+            "every Windows SOLAR supports is 6 or later: {major}.{minor}.{build}"
+        );
+        assert!(build > 1, "a build number is a build number: {build}");
+
+        let release = read_here().expect("and it becomes a release");
+        assert_eq!(release.name.as_deref(), Some("Windows"));
+        assert_eq!(
+            release.release.as_deref(),
+            Some(format!("{major}.{minor}.{build}").as_str()),
+            "what is reported is what was read"
+        );
     }
 
     #[test]

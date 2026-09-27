@@ -92,9 +92,9 @@ of them is a promise about another machine.
 
 | What | Figure |
 | ---- | ------ |
-| Tests | **350**, all passing on Windows and on Linux |
+| Tests | **370**, all passing on Windows and on Linux |
 | Conformance cases | **17**, in plain JSON, replayable by a client in any language |
-| Coverage of the shipped crates | **93.79% of lines**, 93.93% of functions, 93.23% of regions. The floor is 91 and only ever rises. |
+| Coverage of the shipped crates | **94.67% of lines**, 94.74% of functions, 94.10% of regions, after the tests that killed the mutants. The floor is 91 and only ever rises. |
 | Decision records | **38**, after the twenty-seven confirmed on 27 September 2026 |
 | The manifest | **1 088 lines** for six APIs, with shared `$defs`. It was 1 152 lines for five before they were shared, which is 230 lines per API then and 181 now |
 | Release binary | **1 782 272 bytes** on Windows, 9 486 144 on Linux, both with `debug = "line-tables-only"` |
@@ -161,7 +161,7 @@ Measured on 27 September 2026, after a local mutation run filled the disk.
 | `target/debug` | **11.94 GB** | **1.33 GB** |
 | `target/ci`, the nested tree of the one command | 8.61 GB, kept between runs | removed when `cargo xtask ci` finishes |
 | `target/llvm-cov-target` | 1.82 GB, kept | removed with it |
-| `target/` in all | **23.80 GB** | **3.07 GB**, after a full `cargo xtask ci`, the whole suite, a release build and a soak run. The budget is 10 GB |
+| `target/` in all | **23.80 GB** | **3.07 GB**, after a full `cargo xtask ci`, the whole suite, a release build and a soak run. The budget is 20 GB |
 | The temporary trees of a local mutation run | 14.7 GB for eight jobs | none: it runs in CI |
 
 Three changes, each with its reason written where it is made:
@@ -178,8 +178,11 @@ Three changes, each with its reason written where it is made:
   mutants` now says so and refuses, and `SOLAR_MUTANTS_ANYWAY=1` lifts the refusal for
   somebody who has the disk and means it.
 
-**The footprint to stay under is 10 GB**, and a full `cargo xtask ci` followed by a
-release build is what to measure it with.
+**The footprint to stay under is 20 GB**, raised from 10 by the architect on
+27 September 2026, and a full `cargo xtask ci` followed by a release build is what to
+measure it with. Nothing that was done to fit under 10 is undone: the measured footprint
+is 3.07 GB, and the extra room is for a later stage rather than for letting this one
+grow.
 
 ### What one call allocates
 
@@ -208,54 +211,64 @@ the mutation ceiling.
 
 Each one has a test at the limit and a test one past it.
 
-### Mutation, and why the old score was not a measurement
+### Mutation, measured at last
 
 Coverage says a line ran. Mutation changes the line, runs the suite, and reports where
-nothing failed. Stage two reported 98 survivors out of 538 mutants. **That number was
-wrong, for two reasons found this stage, and both are fixed.**
+nothing failed. Stage two reported 98 survivors out of 538 mutants; stage three found that
+number was not a measurement and fixed the two faults behind it. **Stage four ran the
+weekly job by hand and read what it said.**
 
-| | Before, and why it was wrong | Now |
+| | Stage two, not a measurement | Measured on 27 September 2026 |
 | --- | --- | --- |
-| What judges a mutant | The mutated crate's own tests, which is `cargo mutants`' default | The whole workspace suite, `test_workspace = true` |
-| Where each mutant builds | One shared `CARGO_TARGET_DIR`, inherited from the rule that keeps nested builds off the running xtask binary | Each copied tree's own, which is what `cargo mutants` does when left alone |
+| Mutants generated | 538 | **646** |
+| Caught, meaning a test failed | 359 | **483** |
+| Hung the suite, which is the suite noticing | 4 | **13** |
+| Could not be built, so not a mutant at all | 77 | **107** |
+| **Survived** | 98 | **43** |
+| Score, caught over viable, counting a hang as caught | 78.7% | **92.0%** |
 
-The first made a line checked by a `solar-cli` test read as a survivor: `logging::log`,
-mutated by hand, fails two command line tests, and the run reported it surviving. The
-second let cargo reuse a test binary built in another copy, so **a mutant could be judged
-by an artefact built from a different mutant**, and `tests/docs.rs` went looking for the
-contract in a directory that had already been deleted.
+It took 75 minutes on `ubuntu-latest` with four jobs, well inside the three hours the job
+is given.
 
-A complete run under the corrected configuration was started on this machine and stopped
-when it filled the disk. What it had measured by then:
+**What the two faults were**, both found in stage three and fixed before this run:
 
-| | |
-| --- | --- |
-| Mutants tested before it was stopped | 276 of 655 |
-| Survivors among them | **5** |
-| The same files under the old configuration | 40-odd |
+| | What was wrong | What it is now |
+| --- | --- | --- |
+| What judges a mutant | The mutated crate's own tests, which is `cargo mutants`' default. A line of `solar-core` checked by a `solar-cli` test read as a survivor. | The whole workspace suite, `test_workspace = true` |
+| Where each mutant builds | One shared `CARGO_TARGET_DIR`, so a mutant could be judged by an artefact built from a different mutant | Each copied tree's own |
 
-The five were: three in `os_release.rs`, two of which are inside a `cfg` block for another
-operating system and cannot be judged here at all, and one an equivalent mutant now
-excluded with the argument written next to it; and two match arms of `Level::parse` and
-`Format::parse` that no test named, now covered by a test that names every spelling.
+**What was done with the 43.** Twenty-nine were killed by tests of observable behaviour:
+the boundary of `brief` on both of its branches, the last resort envelope that is built
+without serde and has to escape by hand, the hint that offers a lower case name only when
+that would help, what `is_success` and `protocol_name` answer, every condition that makes
+a string one of the timestamps a replay ignores, a timestamp inside an array, each thing
+serde can say and the reason it becomes, a pointer into a list against a member whose name
+is a number, a type written as a list, the hint for an API that takes no parameters at
+all, two definitions of one name in the manifest, what counts as being before the first
+stable release, and the level a human log line names.
 
-**Mutation testing now runs in continuous integration and not here**, which is the
-decision of 27 September 2026 after the disk filled: `cargo mutants` copies the whole
-source tree once per job and builds every copy, 14.7 GB for eight jobs. The weekly job
-does the same work on a runner that is thrown away, so the check is not lost.
+Two were dead code and are gone rather than tested: `logging::set_format` and
+`logging::debug` had no callers at all, which is why nothing noticed them changing.
 
-**The ceiling in `xtask/src/mutants.rs` stays at 98 until that job reports a complete
-run.** Lowering it to a number nobody measured would make the job fail for the wrong
-reason. The evidence above says the real figure is far below it, and the next stage sets
-it from the run rather than from an argument.
+**Eleven cannot be judged by this job, and saying so is the honest answer.** They sit
+inside `cfg` blocks for another operating system: the nine shapes `RtlGetVersion` could
+return, the comparison that reads its status, and the fallback `read_here` for a system
+that is neither Linux, macOS nor Windows. Linux never compiles those lines, so mutating
+them changes nothing there. What was possible was done: the rule for reading a
+`SystemVersion.plist` and the rule for turning three numbers into a Windows release are
+now compiled and tested on every system, and only the foreign call itself is conditional.
+A test that runs on Windows pins what that call may return.
 
-What was killed this stage, each one a line that could have been wrong without a test
-failing: the value of `DEFAULT_MAX_OUTPUT_BYTES` and of the three session limits,
-`BuildInfo::is_complete` in both directions, the calendar branch for dates before the
-epoch, `Context::elapsed`, `Context::remaining` and `Context::session`, the registry a
-built dispatcher hands out, the rule for printing a backtrace, five lines of arithmetic in
-the line reader, the identifiers left in flight when one queued call is cancelled, and
-every spelling of a log level and a log format.
+One more is left standing and is worth naming: `logging::error` is reached only when a
+handler panics, and no API that ships panics, so nothing in the suite can reach it. It is
+not equivalent, and excluding it would be a lie about why it survives.
+
+**The ceiling is 43**, the number measured, and the weekly job fails at 44. It only ever
+goes down.
+
+**What would close the rest:** running the mutation job on all three systems rather than
+on Linux alone, which is three times 75 minutes a week. That is a decision for the
+architect, not one to take alone.
 
 ## What ZENITH asked for, and what it got
 

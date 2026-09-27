@@ -283,6 +283,116 @@ mod tests {
     }
 
     #[test]
+    fn every_thing_serde_says_is_classified_as_its_own_reason() {
+        // The words are serde's, and each arm earns its place: a caller told
+        // INVALID_VALUE for a missing field would look in the wrong place.
+        let cases = [
+            ("missing field `api`", Reason::MissingField, None),
+            ("unknown field `apy`", Reason::UnknownField, None),
+            (
+                "invalid type: string \"x\", expected u32",
+                Reason::TypeMismatch,
+                Some("u32"),
+            ),
+            (
+                "invalid value: integer `0`, expected a positive number",
+                Reason::InvalidValue,
+                Some("a positive number"),
+            ),
+            (
+                "invalid length 0, expected at least one",
+                Reason::InvalidValue,
+                Some("at least one"),
+            ),
+            ("duplicate field `api`", Reason::InvalidValue, None),
+            ("something nobody has seen", Reason::InvalidValue, None),
+        ];
+
+        for (message, reason, expected) in cases {
+            let (read, said) = classify(message);
+            assert_eq!(read, reason, "{message}");
+            assert_eq!(said, expected, "{message}");
+        }
+    }
+
+    #[test]
+    fn a_pointer_into_an_array_is_followed_only_when_the_schema_has_items() {
+        // Both halves of the condition matter. A digit is an index only where the schema
+        // says there is a list; a member whose name is a number is still a member.
+        let list = json!({
+            "type": "object",
+            "properties": {
+                "names": {"type": "array", "items": {"type": "string"}},
+                "7": {"type": "boolean"}
+            }
+        });
+
+        assert_eq!(
+            expected_from_schema(&list, "/names/0").as_deref(),
+            Some("string"),
+            "a digit under something with items is an index"
+        );
+        assert_eq!(
+            expected_from_schema(&list, "/7").as_deref(),
+            Some("boolean"),
+            "a digit that names a member is a member"
+        );
+    }
+
+    #[test]
+    fn a_type_written_as_a_list_is_read_as_one_of_them() {
+        assert_eq!(
+            describe_type(&json!({"type": "string"})).as_deref(),
+            Some("string")
+        );
+        assert_eq!(
+            describe_type(&json!({"type": ["string", "null"]})).as_deref(),
+            Some("string or null"),
+            "schemars writes an optional member this way"
+        );
+        assert_eq!(
+            describe_type(&json!({"type": []})),
+            None,
+            "a list of nothing describes nothing"
+        );
+        assert_eq!(describe_type(&json!({})), None);
+    }
+
+    /// An API that takes no parameters at all, for the hint that says so.
+    #[derive(Debug, Deserialize, JsonSchema)]
+    #[serde(deny_unknown_fields)]
+    struct Nothing {}
+
+    #[test]
+    fn the_hint_for_an_unknown_member_says_what_the_api_does_take() {
+        let schema = serde_json::to_value(schema_for!(Params)).expect("a schema");
+
+        // Nothing close: the hint lists what there is.
+        let hint = hint_for(
+            Reason::UnknownField,
+            "unknown field `wildly_different`",
+            &schema,
+            "",
+            None,
+        );
+        assert!(hint.contains("api"), "it lists the members: {hint}");
+
+        // An API that takes nothing at all says so, rather than listing an empty list.
+        let empty = serde_json::to_value(schema_for!(Nothing)).expect("a schema");
+        let hint = hint_for(
+            Reason::UnknownField,
+            "unknown field `anything`",
+            &empty,
+            "",
+            None,
+        );
+        assert!(
+            hint.contains("takes none"),
+            "an API with no parameters says so: {hint}"
+        );
+    }
+
+    #[test]
     fn valid_params_come_back_typed() {
         let parsed: Params =
             deserialize("test.api", &json!({"api": "solar.ping"}), &schema(), None).unwrap();
