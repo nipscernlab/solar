@@ -1,0 +1,55 @@
+[workspace]
+resolver = "3"
+members = ["crates/solar-core"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97"
+license = "LicenseRef-NIPS-CERN-1.1"
+authors = ["NIPS-CERN <chrysthofer.afonso@cern.ch>"]
+repository = "https://github.com/nipscernlab/solar"
+homepage = "https://nipscern.com"
+publish = false
+
+[workspace.dependencies]
+solar-core = { path = "crates/solar-core", version = "0.1.0" }
+solar-apis = { path = "crates/solar-apis", version = "0.1.0" }
+
+clap = { version = "4.6", features = ["derive"] }
+criterion = "0.8"
+jsonschema = "0.58"
+os_info = { version = "3.15", default-features = false }
+schemars = "1.2"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_path_to_error = "0.1"
+toml = { version = "1.1", default-features = false, features = ["parse", "serde"] }
+
+# Lints are shared by every crate in the workspace. CI runs clippy with `-D warnings`,
+# so everything below that is a warning is effectively an error there as well.
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+missing_debug_implementations = "warn"
+unreachable_pub = "warn"
+rust_2018_idioms = { level = "warn", priority = -1 }
+
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
+unimplemented = "deny"
+dbg_macro = "deny"
+print_stdout = "warn"
+doc_markdown = "warn"
+
+# `panic = "unwind"` is mandatory: dispatch turns a handler panic into an INTERNAL
+# error with `std::panic::catch_unwind`, which does nothing under `panic = "abort"`.
+[profile.release]
+lto = "fat"
+codegen-units = 1
+panic = "unwind"
+opt-level = 3
+incremental = false

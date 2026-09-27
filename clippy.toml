@@ -1,0 +1,5 @@
+# Tests are allowed to unwrap, expect and panic: that is how a test reports failure.
+# Production code is not, see `[workspace.lints.clippy]` in the root Cargo.toml.
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-panic-in-tests = true
