@@ -11,13 +11,20 @@ The entries are grouped by where the decision shows up.
 
 ### `params: null` is refused
 
+**Confirmed by the architect on 26 September 2026.**
+
 `params` may be absent, and when it is present it must be an object. `null` is present and
 is not an object, so it gets `TYPE_MISMATCH` with a hint that says to omit the member.
 
-**Why.** Being strict costs a caller one correction once; being lenient costs every reader
-of the contract a special case forever. Many clients do send `"params": null`, so this is
-the entry most likely to be overruled. Accepting it later is a compatible change;
-refusing it later would not be.
+**Why.** This is the specification, not only strictness. JSON-RPC 2.0, section 4.2,
+requires `params`, when it is present, to be a structured value: an object or an array.
+`null` is neither, so a message carrying it is already invalid before SOLAR has an opinion.
+SOLAR then narrows the structured value further, to an object, because parameters are
+always passed by name here; that narrowing is SOLAR's own and section 3 of the contract
+states it.
+
+**Why it was flagged.** Many clients do send `"params": null`, and accepting it later
+would have been a compatible change. The architect confirmed the refusal.
 
 ### The envelope is checked in a fixed order
 
@@ -39,6 +46,8 @@ correction in nine cases out of ten.
 
 ### `error.data` has exactly four members
 
+**Confirmed by the architect on 26 September 2026.**
+
 `status`, `reason`, `details`, `meta`. A fifth member saying whether the failure is worth
 retrying was considered and dropped.
 
@@ -58,6 +67,8 @@ value, which tells the caller nothing.
 ## Dispatch
 
 ### A handler that overruns is abandoned, not killed
+
+**Confirmed by the architect on 26 September 2026.**
 
 The response goes out at the deadline. The thread carries on until it finishes and its
 result is thrown away.
@@ -117,13 +128,19 @@ implementation detail, and it is not needed by any interface that exists today.
 
 ### `solar.manifest` with `api` keeps the shape of the whole document
 
+**Confirmed by the architect on 26 September 2026.**
+
 `{"api": "solar.ping"}` returns a manifest whose `apis` holds one entry, not a bare entry.
 `solar.describe` is the call that returns the bare entry.
 
-**Why.** One call, one shape. A caller that narrows the manifest does not have to parse
-something different from what it parses when it does not.
+**Why.** One API, one response shape. That is the rigidity principle applied to the
+answer rather than to the declaration: a caller that narrows the manifest parses exactly
+what it parses when it does not. An API that needs the bare entry calls the API whose job
+that is.
 
 ### Every API is `experimental`, and a test enforces it
+
+**Confirmed by the architect on 26 September 2026.**
 
 While `solar_version` is below `1.0.0`, an API that claims `stable` fails the build.
 
@@ -157,6 +174,8 @@ differs from the one it was written against.
 member in a minor bump without every consumer refusing the file.
 
 ### The file, the module and the struct follow from the method name
+
+**Confirmed by the architect on 26 September 2026.**
 
 `build.run_target` gives `build_run_target.rs`, `mod build_run_target` and
 `struct BuildRunTarget`. No exceptions.

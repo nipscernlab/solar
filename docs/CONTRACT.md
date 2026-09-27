@@ -61,7 +61,7 @@ Two properties drive every decision in this document.
 | `jsonrpc` | MUST be present and MUST be exactly the string `"2.0"`.                       |
 | `id`      | MUST be present and MUST be a number or a string. See the deviation below.    |
 | `method`  | MUST be present and MUST be a string matching the naming rule of section 4.   |
-| `params`  | MAY be absent. When present it MUST be an object; absent means `{}`.          |
+| `params`  | MAY be absent. When present it MUST be an object; absent means `{}`. `null` is not a structured value and is refused: JSON-RPC 2.0, section 4.2. |
 
 Unknown members at the top level of the request are ignored, which is what JSON-RPC 2.0
 requires. Unknown members inside `params` are **not** ignored: every API declares its

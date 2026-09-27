@@ -68,14 +68,19 @@ One measurement changed the design. Starting a thread per call cost about 70 µs
 to 7.59 µs, and a call that overruns still costs a fresh thread, because the one it
 abandoned can never be trusted again.
 
-## What was decided without asking
+## What was decided without asking, and confirmed
 
 All of it is in `docs/OPEN_QUESTIONS.md`, with the reasoning and with what would make each
-one worth revisiting. The ones most worth a second opinion:
+one worth revisiting. The six below were put to the architect and **confirmed as they
+stand on 26 September 2026**, including the two that were flagged as most likely to be
+wrong.
 
-1. **`params: null` is refused.** Strict today, and compatible to loosen later.
+1. **`params: null` is refused.** Not only strictness: JSON-RPC 2.0, section 4.2, requires
+   `params`, when present, to be a structured value, an object or an array, so `null` is
+   already invalid. SOLAR narrows that to an object, because parameters are passed by
+   name, and section 3 of the contract says so.
 2. **`solar.manifest` with `api` keeps the shape of the whole document**, and
-   `solar.describe` is what returns a bare entry.
+   `solar.describe` is the API that returns a bare entry. One API, one response shape.
 3. **`error.data` has exactly four members.** A `retriable` flag was considered and
    dropped; retriability is documented per status instead.
 4. **The struct, module and file of an API follow from its method name with no
@@ -86,8 +91,9 @@ one worth revisiting. The ones most worth a second opinion:
 
 ## What is left
 
-**For the architect to confirm.** The six decisions above, and the shape of every response
-in `manifest/solar.manifest.json`, which is the whole surface in one file.
+**For the architect to confirm.** The shape of every response in
+`manifest/solar.manifest.json`, which is the whole surface in one file. The six decisions
+above are settled.
 
 **Not started, and out of scope for this stage by instruction.** Anything that runs an
 external program. `tools.detect`, the table of known tools and the process runner were
