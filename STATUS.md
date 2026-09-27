@@ -52,7 +52,7 @@ missing `--locked`.
 | ---- | ------ |
 | Tests | 228, of which 108 in `solar-core`, 67 in `solar-apis`, 40 in `solar-cli`, 13 in `xtask` |
 | Coverage of the shipped crates | **91.33% of lines**, 91.63% of regions. The floor is 91 and only ever rises. |
-| Conformance cases | 11, in plain JSON, replayable by a client in any language |
+| Conformance cases | 11, in plain JSON. Replayed from Python, with a fifteen line matcher and no Rust, against the release binary: 11 sent, 11 answered, 0 failures. The claim that the suite is language-neutral is checked, not asserted. |
 | Fuzzing, envelope parser | 12 008 867 executions in 181 s, no crashes |
 | Release binary | 1 548 288 bytes with `debug = "line-tables-only"`, up from 1 461 760 without it |
 | `solar call solar.ping`, whole process | 4.16 ms, down from 5.64 ms before the remap and line tables |

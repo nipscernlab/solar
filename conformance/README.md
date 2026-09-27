@@ -54,6 +54,14 @@ In Rust, and in CI:
 cargo nextest run -p solar-apis --test conformance
 ```
 
+## It really is language-neutral
+
+That claim was checked rather than asserted: the eleven cases were replayed from Python,
+with a fifteen line matcher and no Rust involved, against the release binary. Eleven
+sent, eleven answered, nothing failed. A client in TypeScript needs the same fifteen
+lines: send `request` or `request_line`, read one line back, and compare by the rule in
+`match`, treating `"$any"` as a wildcard.
+
 ## Adding one
 
 Write the file, run the suite, and read the difference it reports. A case is a promise to
