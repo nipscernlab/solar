@@ -6,7 +6,7 @@ SOLAR speaks JSON-RPC 2.0 over standard input and output, one message per line. 
 
 The contract is docs/CONTRACT.md and the errors are docs/ERRORS.md.
 
-Usage: solar.exe [OPTIONS] <COMMAND>
+Usage: solar [OPTIONS] <COMMAND>
 
 Commands:
   call      Run one call and print the whole response envelope

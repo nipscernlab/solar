@@ -36,7 +36,10 @@ fn screen(arguments: &[&str]) -> String {
 
     let mut redacted = String::new();
     for line in text.lines() {
-        let line = line.replace(version, "[version]");
+        // clap prints the file name of the binary, which carries .exe on Windows only.
+        let line = line
+            .replace("solar.exe", "solar")
+            .replace(version, "[version]");
         let label = line.split_whitespace().next().unwrap_or_default();
         if PER_MACHINE.contains(&label) {
             // Replace the value and keep the column, because the column is the layout.
