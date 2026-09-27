@@ -1,30 +1,18 @@
-# Open questions and decisions taken alone
+# Open questions
 
 Everything here was decided without asking, because the brief said to take the most
 conservative option and write down why. Each entry says what was chosen, what it rules
-out, and what would make it worth revisiting. Anything the architect disagrees with is
-cheap to change now and expensive to change after other institutions depend on it.
+out, and what would make it worth revisiting.
 
-The entries are grouped by where the decision shows up.
+**What is settled has moved.** A decision the architect has confirmed becomes a record in
+[`adr/`](adr/) and leaves this file, so that this file is only ever the list of things
+still open to being overruled. The nine records there cover the transport, the two
+deviations from JSON-RPC, the shape of a response, the naming rule, stability, the
+timeout and the worker thread.
+
+The entries below are grouped by where the decision shows up.
 
 ## The envelope
-
-### `params: null` is refused
-
-**Confirmed by the architect on 26 September 2026.**
-
-`params` may be absent, and when it is present it must be an object. `null` is present and
-is not an object, so it gets `TYPE_MISMATCH` with a hint that says to omit the member.
-
-**Why.** This is the specification, not only strictness. JSON-RPC 2.0, section 4.2,
-requires `params`, when it is present, to be a structured value: an object or an array.
-`null` is neither, so a message carrying it is already invalid before SOLAR has an opinion.
-SOLAR then narrows the structured value further, to an object, because parameters are
-always passed by name here; that narrowing is SOLAR's own and section 3 of the contract
-states it.
-
-**Why it was flagged.** Many clients do send `"params": null`, and accepting it later
-would have been a compatible change. The architect confirmed the refusal.
 
 ### The envelope is checked in a fixed order
 
@@ -44,17 +32,6 @@ the registry is consulted at all.
 name rather than the name itself. The hint offers the lower case spelling, which is the
 correction in nine cases out of ten.
 
-### `error.data` has exactly four members
-
-**Confirmed by the architect on 26 September 2026.**
-
-`status`, `reason`, `details`, `meta`. A fifth member saying whether the failure is worth
-retrying was considered and dropped.
-
-**Why.** The architect's example shows four, and a caller that can pattern match on a
-fixed shape is worth more than one convenience field. Retriability is documented per
-status in `docs/ERRORS.md`, where an agent reads it once instead of on every error.
-
 ### A value echoed in `received` is cut at 200 bytes
 
 A long string is truncated with a `[...]` marker, and a large array or object is replaced
@@ -65,27 +42,6 @@ a composite is described, which is the cost of the rule; the alternative was to 
 value, which tells the caller nothing.
 
 ## Dispatch
-
-### A handler that overruns is abandoned, not killed
-
-**Confirmed by the architect on 26 September 2026.**
-
-The response goes out at the deadline. The thread carries on until it finishes and its
-result is thrown away.
-
-**Why.** Rust has no safe way to kill a thread, and the alternatives are worse: no
-timeout at all, or a cancellation token every handler has to remember to check. The
-contract states it plainly so that nobody assumes the work was undone. A handler that
-starts anything long lived is expected to give it a shorter budget of its own.
-
-### One reusable worker thread per dispatching thread
-
-A thread is started on the first call and reused. A call that times out drops it, so the
-next call starts a fresh one.
-
-**Why.** Measurement: starting a thread for every call cost about 70 µs of the 77 µs a
-ping took. The same ping now costs 7.59 µs. An abandoned thread is never reused, because
-its next answer would belong to the call that gave up on it.
 
 ### A registry that does not build answers every call with the same error
 
@@ -125,27 +81,6 @@ there is no shared state to get wrong. Concurrency is a protocol change, not an
 implementation detail, and it is not needed by any interface that exists today.
 
 ## The APIs
-
-### `solar.manifest` with `api` keeps the shape of the whole document
-
-**Confirmed by the architect on 26 September 2026.**
-
-`{"api": "solar.ping"}` returns a manifest whose `apis` holds one entry, not a bare entry.
-`solar.describe` is the call that returns the bare entry.
-
-**Why.** One API, one response shape. That is the rigidity principle applied to the
-answer rather than to the declaration: a caller that narrows the manifest parses exactly
-what it parses when it does not. An API that needs the bare entry calls the API whose job
-that is.
-
-### Every API is `experimental`, and a test enforces it
-
-**Confirmed by the architect on 26 September 2026.**
-
-While `solar_version` is below `1.0.0`, an API that claims `stable` fails the build.
-
-**Why.** A rule is better than a judgement per API. Nothing in SOLAR can be more stable
-than SOLAR, and the first stable release is the moment to make that promise deliberately.
 
 ### `system.info` reports the release of the operating system
 
@@ -194,17 +129,6 @@ differs from the one it was written against.
 
 **Why.** The same rule as everything else in the repository, and it leaves room to add a
 member in a minor bump without every consumer refusing the file.
-
-### The file, the module and the struct follow from the method name
-
-**Confirmed by the architect on 26 September 2026.**
-
-`build.run_target` gives `build_run_target.rs`, `mod build_run_target` and
-`struct BuildRunTarget`. No exceptions.
-
-**Why.** Three things that must agree are derived from one, so a person, a tool or an
-agent can work out any of them from any other without looking. The existing APIs were
-renamed to obey it: `solar.ping` is `SolarPing`, not `Ping`.
 
 ### Suggestions come from the Levenshtein distance, at most three of them
 

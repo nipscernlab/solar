@@ -1,0 +1,7 @@
+# Chrysthofer Arthur Amaro Afonso is the architect of SOLAR and of Constellation, and the
+# technical coordinator of NIPS-CERN. Everything in this repository is reviewed by him.
+#
+# For this to be enforced rather than advisory, branch protection on `main` must require
+# a review from a code owner. STATUS.md lists the exact settings to turn on.
+
+* @Chrysthofer

@@ -256,8 +256,12 @@ manifest/solar.manifest.json    generated, versioned, checked by a test
 docs/CONTRACT.md                the contract, normative
 docs/ERRORS.md                  the error catalogue
 docs/ADDING_AN_API.md           the procedure for the next API
-docs/OPEN_QUESTIONS.md          what was decided without asking, and why
+docs/OPEN_QUESTIONS.md          what was decided without asking and is still open
+docs/adr/                       the decisions that are settled, one file each
+docs/STYLE.md                   how the prose, the comments and the errors are written
 docs/brand/                     the mark, its colours and its terminal form
+conformance/                    request and response pairs any client can replay
+fuzz/                           the fuzzing targets and their corpus
 ```
 
 ## Building and checking
@@ -272,7 +276,20 @@ cargo xtask manifest --check       # the manifest is not stale
 cargo bench                        # the numbers in the table above
 ```
 
-All of it runs in CI on `ubuntu-latest`, `windows-latest` and `macos-latest`.
+All of it, and more, is one command:
+
+```bash no-run
+# no-run: it is the whole pipeline, and CI runs the same steps as its own
+cargo xtask ci
+```
+
+That runs exactly what CI runs, in the same order and with the same flags, and a test
+holds the two together. CI runs on `ubuntu-latest`, `windows-latest` and `macos-latest`,
+and weekly on the latest stable compiler, on the declared minimum, on the fuzzing
+targets and on the mutation suite.
+
+[`CONTRIBUTING.md`](CONTRIBUTING.md) is the rest: adding an API, the rules about
+dependencies, and how to record a session for a bug report.
 
 ## Who wrote this
 
