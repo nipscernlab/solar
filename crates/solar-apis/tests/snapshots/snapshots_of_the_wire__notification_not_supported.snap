@@ -1,0 +1,36 @@
+---
+source: crates/solar-apis/tests/snapshots_of_the_wire.rs
+expression: "answer(& r#\"{\"jsonrpc\":\"2.0\",\"method\":\"solar.ping\"}\"#.to_owned())"
+---
+{
+  "error": {
+    "code": -32600,
+    "data": {
+      "details": [
+        {
+          "docs": "docs/ERRORS.md#invalid_argument",
+          "expected": "a number or a string",
+          "field": "id",
+          "hint": "Add an id. JSON-RPC 2.0 calls a message without one a notification and forbids a reply; SOLAR answers every call, so it refuses notifications instead.",
+          "received": null
+        }
+      ],
+      "meta": {
+        "api_version": null,
+        "arch": "[arch]",
+        "duration_us": "[duration]",
+        "method": null,
+        "os": "[os]",
+        "protocol": "solar/1",
+        "request_id": null,
+        "solar_version": "[version]",
+        "started_at": "[timestamp]"
+      },
+      "reason": "NOTIFICATION_NOT_SUPPORTED",
+      "status": "INVALID_ARGUMENT"
+    },
+    "message": "Every SOLAR call needs an id, because every call gets a response."
+  },
+  "id": null,
+  "jsonrpc": "2.0"
+}

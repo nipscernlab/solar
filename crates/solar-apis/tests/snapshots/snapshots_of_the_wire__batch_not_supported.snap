@@ -1,0 +1,36 @@
+---
+source: crates/solar-apis/tests/snapshots_of_the_wire.rs
+expression: "answer(& r#\"[{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"solar.ping\"}]\"#.to_owned())"
+---
+{
+  "error": {
+    "code": -32007,
+    "data": {
+      "details": [
+        {
+          "docs": "docs/ERRORS.md#unimplemented",
+          "expected": "a single JSON object",
+          "field": null,
+          "hint": "Send one request per line. `solar serve --stdio` keeps the session open and answers each line in order.",
+          "received": "array"
+        }
+      ],
+      "meta": {
+        "api_version": null,
+        "arch": "[arch]",
+        "duration_us": "[duration]",
+        "method": null,
+        "os": "[os]",
+        "protocol": "solar/1",
+        "request_id": null,
+        "solar_version": "[version]",
+        "started_at": "[timestamp]"
+      },
+      "reason": "BATCH_NOT_SUPPORTED",
+      "status": "UNIMPLEMENTED"
+    },
+    "message": "Batch requests are not implemented in solar/1."
+  },
+  "id": null,
+  "jsonrpc": "2.0"
+}

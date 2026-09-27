@@ -1,0 +1,38 @@
+---
+source: crates/solar-apis/tests/snapshots_of_the_wire.rs
+expression: "answer(&\nr#\"{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"solar.ping\",\"params\":[1]}\"#.to_owned())"
+---
+{
+  "error": {
+    "code": -32600,
+    "data": {
+      "details": [
+        {
+          "docs": "docs/ERRORS.md#invalid_argument",
+          "expected": "object",
+          "field": "params",
+          "hint": "Pass parameters by name, e.g. {\"message\":\"hi\"}. Omit params entirely when the API takes none; null is not an object.",
+          "received": [
+            1
+          ]
+        }
+      ],
+      "meta": {
+        "api_version": null,
+        "arch": "[arch]",
+        "duration_us": "[duration]",
+        "method": "solar.ping",
+        "os": "[os]",
+        "protocol": "solar/1",
+        "request_id": 1,
+        "solar_version": "[version]",
+        "started_at": "[timestamp]"
+      },
+      "reason": "TYPE_MISMATCH",
+      "status": "INVALID_ARGUMENT"
+    },
+    "message": "The params of solar.ping must be an object, and a array arrived."
+  },
+  "id": 1,
+  "jsonrpc": "2.0"
+}

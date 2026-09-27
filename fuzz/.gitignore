@@ -1,0 +1,2 @@
+fuzz/target
+corpus/*/crash-*

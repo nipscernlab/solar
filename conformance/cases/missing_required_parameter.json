@@ -1,0 +1,33 @@
+{
+  "name": "missing_required_parameter",
+  "description": "A required parameter that is absent names itself and its type",
+  "request": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "solar.describe",
+    "params": {}
+  },
+  "response": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "error": {
+      "code": -32602,
+      "message": "$any",
+      "data": {
+        "status": "INVALID_ARGUMENT",
+        "reason": "MISSING_FIELD",
+        "details": [
+          {
+            "field": "/api",
+            "expected": "string",
+            "received": null,
+            "hint": "$any",
+            "docs": "docs/ERRORS.md#invalid_argument"
+          }
+        ],
+        "meta": "$any"
+      }
+    }
+  },
+  "match": "subset"
+}

@@ -1,0 +1,12 @@
+---
+source: crates/solar-cli/tests/snapshots_of_the_screen.rs
+expression: "screen(&[\"version\"])"
+---
+solar          [version]
+protocol       solar/1
+manifest       1.0.0
+commit         [build]
+dirty          [build]
+profile        [build]
+target         [build]
+compiler       [build]

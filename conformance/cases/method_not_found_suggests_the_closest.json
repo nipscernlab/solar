@@ -1,0 +1,32 @@
+{
+  "name": "method_not_found_suggests_the_closest",
+  "description": "An unknown method comes back with the registered name closest to it",
+  "request": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "solar.pign"
+  },
+  "response": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "error": {
+      "code": -32601,
+      "message": "$any",
+      "data": {
+        "status": "NOT_FOUND",
+        "reason": "METHOD_NOT_FOUND",
+        "details": [
+          {
+            "field": "method",
+            "expected": "solar.ping",
+            "received": "solar.pign",
+            "hint": "$any",
+            "docs": "docs/ERRORS.md#not_found"
+          }
+        ],
+        "meta": "$any"
+      }
+    }
+  },
+  "match": "subset"
+}

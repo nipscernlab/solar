@@ -64,7 +64,19 @@ pub(crate) fn run(root: &Path) -> Result<(), String> {
                 "warnings",
             ],
         ),
-        cargo(root, "tests", &["test", "--workspace", "--locked"]),
+        tool(
+            root,
+            "tests",
+            "cargo",
+            &["nextest", "run", "--workspace", "--locked"],
+            "cargo-nextest",
+        ),
+        // nextest does not run doctests, so they are their own step, as in the workflow.
+        cargo(
+            root,
+            "doctests",
+            &["test", "--doc", "--workspace", "--locked"],
+        ),
         documentation(root),
         step("manifest", || crate::manifest_check(root)),
         // The blocks of the documentation call `cargo xtask`, which would relink the

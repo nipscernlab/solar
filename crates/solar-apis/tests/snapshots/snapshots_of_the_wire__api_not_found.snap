@@ -1,0 +1,36 @@
+---
+source: crates/solar-apis/tests/snapshots_of_the_wire.rs
+expression: "answer(& request(\"solar.describe\", json!({\"api\": \"solar.pign\"})))"
+---
+{
+  "error": {
+    "code": -32601,
+    "data": {
+      "details": [
+        {
+          "docs": "docs/ERRORS.md#not_found",
+          "expected": "solar.ping",
+          "field": "/api",
+          "hint": "Did you mean \"solar.ping\"? The edit distance is 2.",
+          "received": "solar.pign"
+        }
+      ],
+      "meta": {
+        "api_version": "1.0.0",
+        "arch": "[arch]",
+        "duration_us": "[duration]",
+        "method": "solar.describe",
+        "os": "[os]",
+        "protocol": "solar/1",
+        "request_id": 1,
+        "solar_version": "[version]",
+        "started_at": "[timestamp]"
+      },
+      "reason": "API_NOT_FOUND",
+      "status": "NOT_FOUND"
+    },
+    "message": "No API is registered under the name solar.pign."
+  },
+  "id": 1,
+  "jsonrpc": "2.0"
+}

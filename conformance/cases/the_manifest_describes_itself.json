@@ -1,0 +1,43 @@
+{
+  "name": "the_manifest_describes_itself",
+  "description": "solar.manifest narrowed to one API keeps the shape of the whole document",
+  "request": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "solar.manifest",
+    "params": {
+      "api": "solar.ping"
+    }
+  },
+  "response": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": {
+      "data": {
+        "schema_version": "1.0.0",
+        "protocol": "solar/1",
+        "solar_version": "$any",
+        "apis": [
+          {
+            "name": "solar.ping",
+            "version": "$any",
+            "summary": "$any",
+            "description": "$any",
+            "errors": "$any",
+            "side_effects": "$any",
+            "idempotent": true,
+            "stability": "experimental",
+            "since": "$any",
+            "timeout_ms": "$any",
+            "params_schema": "$any",
+            "output_schema": "$any",
+            "examples": "$any"
+          }
+        ]
+      },
+      "meta": "$any",
+      "warnings": []
+    }
+  },
+  "match": "subset"
+}

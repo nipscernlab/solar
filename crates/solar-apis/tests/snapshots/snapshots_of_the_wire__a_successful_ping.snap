@@ -1,0 +1,27 @@
+---
+source: crates/solar-apis/tests/snapshots_of_the_wire.rs
+expression: "answer(& request(\"solar.ping\", json!({\"message\": \"hi\"})))"
+---
+{
+  "id": 1,
+  "jsonrpc": "2.0",
+  "result": {
+    "data": {
+      "echo": "hi",
+      "pong": true,
+      "received_at": "[timestamp]"
+    },
+    "meta": {
+      "api_version": "1.0.0",
+      "arch": "[arch]",
+      "duration_us": "[duration]",
+      "method": "solar.ping",
+      "os": "[os]",
+      "protocol": "solar/1",
+      "request_id": 1,
+      "solar_version": "[version]",
+      "started_at": "[timestamp]"
+    },
+    "warnings": []
+  }
+}

@@ -43,19 +43,30 @@ pub(crate) fn run(root: &Path, name: &str) -> Result<(), String> {
         ));
     }
 
+    let tests: PathBuf = root
+        .join("crates/solar-apis/tests")
+        .join(format!("{module}.rs"));
+    if tests.exists() {
+        return Err(format!("{} already exists.", tests.display()));
+    }
+
     let registered = register(&source, &module, &structure)?;
     std::fs::write(&file, template(name, &structure).as_bytes())
         .map_err(|failure| format!("{} could not be written: {failure}", file.display()))?;
+    std::fs::write(&tests, test_template(name, &module, &structure).as_bytes())
+        .map_err(|failure| format!("{} could not be written: {failure}", tests.display()))?;
     std::fs::write(&lib, registered.as_bytes())
         .map_err(|failure| format!("{} could not be written: {failure}", lib.display()))?;
 
     println!("new-api: wrote {}", file.display());
+    println!("new-api: wrote {}", tests.display());
     println!("new-api: registered {name} in {}", lib.display());
     println!();
     println!("Next, in this order:");
     println!("  1. fill in the parameters, the output, the description and the examples");
-    println!("  2. cargo test -p solar-apis   the contract tests check the template for you");
-    println!("  3. cargo xtask manifest       the manifest is generated, never hand written");
+    println!("  2. write the tests of {name} in {}", tests.display());
+    println!("  3. cargo nextest run -p solar-apis   the contract tests check the template");
+    println!("  4. cargo xtask manifest              the manifest is generated, never written");
     Ok(())
 }
 
@@ -194,6 +205,60 @@ mod tests {
 }
 "#;
 
+/// The test file a new API starts life with.
+///
+/// The examples of an API are already tests, replayed by the contract suite. This file is
+/// for what an example cannot say: the failures, the edge of each parameter, and whatever
+/// the API is really for. It starts with one test that passes, so the suite is green
+/// before the work begins and red only for a reason.
+fn test_template(name: &str, module: &str, structure: &str) -> String {
+    TEST_TEMPLATE
+        .replace("__NAME__", name)
+        .replace("__MODULE__", module)
+        .replace("__STRUCT__", structure)
+}
+
+const TEST_TEMPLATE: &str = r#"//! The tests of `__NAME__`.
+//!
+//! The examples in the specification are already replayed by `tests/contract.rs`. What
+//! belongs here is everything an example cannot say: every failure the API declares, the
+//! edge of every parameter, and the behaviour the API exists for.
+
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a test reports failure by panicking; integration tests are their own crate"
+)]
+
+use serde_json::{Value, json};
+use solar_core::api::Api as _;
+
+/// The response to one call of this API, as JSON, through the real dispatcher.
+fn call(params: Value) -> Value {
+    let request = json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": solar_apis::__MODULE__::__STRUCT__::NAME,
+        "params": params,
+    });
+    let answered = solar_apis::dispatcher().handle_line(&request.to_string()).to_line();
+    serde_json::from_str(&answered).expect("a response is JSON")
+}
+
+#[test]
+fn it_answers() {
+    let answered = call(json!({}));
+    assert!(answered.get("result").is_some(), "{answered}");
+}
+
+// Write the rest here:
+//
+//   - one test per failure the specification declares in `errors`
+//   - one test per parameter, at its edge: absent, empty, the largest value allowed
+//   - the tests that say what this API is for
+"#;
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -222,6 +287,16 @@ mod tests {
     #[test]
     fn a_block_that_is_not_there_is_reported_rather_than_guessed() {
         assert!(insert_sorted("fn main() {}\n", "pub mod x;\n", "pub mod ").is_none());
+    }
+
+    #[test]
+    fn the_test_skeleton_carries_the_name_the_module_and_the_struct() {
+        let rendered = test_template("build.run_target", "build_run_target", "BuildRunTarget");
+        assert!(rendered.contains("solar_apis::build_run_target::BuildRunTarget::NAME"));
+        assert!(rendered.contains("The tests of `build.run_target`"));
+        assert!(!rendered.contains("__NAME__"));
+        assert!(!rendered.contains("__MODULE__"));
+        assert!(!rendered.contains("__STRUCT__"));
     }
 
     #[test]

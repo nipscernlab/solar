@@ -64,10 +64,10 @@ jobs:
           cargo --version
 
       # Prebuilt binaries for the checkers cargo would otherwise compile from source.
-      - name: Install typos and taplo
+      - name: Install the checkers and the test runner
         uses: taiki-e/install-action@4cef1412cce204788f482e778a0b9187f9626a29 # v2.87.21
         with:
-          tool: typos-cli,taplo-cli
+          tool: typos-cli,taplo-cli,cargo-nextest
 
       - name: Formatting
         run: cargo fmt --all -- --check
@@ -82,7 +82,11 @@ jobs:
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
       - name: Tests
-        run: cargo test --workspace --locked
+        run: cargo nextest run --workspace --locked --profile ci
+
+      # nextest does not run doctests; nothing else does either, so they are their own step.
+      - name: Doctests
+        run: cargo test --doc --workspace --locked
 
       - name: The manifest is not stale
         run: cargo run --package xtask --locked --quiet -- manifest --check

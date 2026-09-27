@@ -1,0 +1,26 @@
+{
+  "name": "ping_with_a_message",
+  "description": "The message comes back untouched in echo",
+  "request": {
+    "jsonrpc": "2.0",
+    "id": "a-string-id",
+    "method": "solar.ping",
+    "params": {
+      "message": "hi"
+    }
+  },
+  "response": {
+    "jsonrpc": "2.0",
+    "id": "a-string-id",
+    "result": {
+      "data": {
+        "pong": true,
+        "echo": "hi",
+        "received_at": "$any"
+      },
+      "meta": "$any",
+      "warnings": []
+    }
+  },
+  "match": "subset"
+}

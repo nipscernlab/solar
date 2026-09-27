@@ -19,7 +19,9 @@ serde_json.workspace = true
 
 [dev-dependencies]
 criterion.workspace = true
+insta.workspace = true
 jsonschema.workspace = true
+proptest.workspace = true
 
 [[bench]]
 name = "dispatch"

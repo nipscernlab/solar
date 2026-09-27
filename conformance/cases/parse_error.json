@@ -1,0 +1,20 @@
+{
+  "name": "parse_error",
+  "description": "A line that is not JSON is answered with the JSON-RPC parse code",
+  "request_line": "{not json",
+  "response": {
+    "jsonrpc": "2.0",
+    "id": null,
+    "error": {
+      "code": -32700,
+      "message": "$any",
+      "data": {
+        "status": "INVALID_ARGUMENT",
+        "reason": "PARSE_ERROR",
+        "details": "$any",
+        "meta": "$any"
+      }
+    }
+  },
+  "match": "subset"
+}

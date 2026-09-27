@@ -1,0 +1,23 @@
+---
+source: crates/solar-cli/tests/snapshots_of_the_screen.rs
+expression: "screen(&[\"describe\", \"solar.ping\"])"
+---
+solar.ping 1.0.0
+Answers immediately, to prove SOLAR is there
+
+The cheapest call SOLAR has. It touches nothing, reads nothing and starts nothing, so the time it takes is the time the protocol itself costs: the round trip of a line through a pipe plus dispatch. That makes it the call to measure with, and the call to reach for when something is not answering and the question is whether SOLAR is alive at all.
+
+Whatever is passed in `message` comes back in `echo`, untouched, which is how a caller tells one ping from another when several are in flight.
+
+stability experimental   since [version]   timeout 1000 ms   idempotent true   touches none
+
+parameters
+  message      string or null     optional  Anything the caller wants back, to tell one ping from another.
+
+examples
+  bare: A ping with no message at all
+    solar call solar.ping
+  with_a_message: A ping that carries something to echo
+    bash        solar call solar.ping '{"message":"hi"}'
+    powershell  '{"message":"hi"}' | solar call solar.ping -
+    cmd         echo {"message":"hi"}| solar call solar.ping -

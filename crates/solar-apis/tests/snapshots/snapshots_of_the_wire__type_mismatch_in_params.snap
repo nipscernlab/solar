@@ -1,0 +1,36 @@
+---
+source: crates/solar-apis/tests/snapshots_of_the_wire.rs
+expression: "answer(& request(\"solar.describe\", json!({\"api\": 3})))"
+---
+{
+  "error": {
+    "code": -32602,
+    "data": {
+      "details": [
+        {
+          "docs": "docs/ERRORS.md#invalid_argument",
+          "expected": "a string",
+          "field": "/api",
+          "hint": "Send the value at /api with the type the schema declares. A call that works: {\"api\":\"solar.ping\"}.",
+          "received": 3
+        }
+      ],
+      "meta": {
+        "api_version": "1.0.0",
+        "arch": "[arch]",
+        "duration_us": "[duration]",
+        "method": "solar.describe",
+        "os": "[os]",
+        "protocol": "solar/1",
+        "request_id": 1,
+        "solar_version": "[version]",
+        "started_at": "[timestamp]"
+      },
+      "reason": "TYPE_MISMATCH",
+      "status": "INVALID_ARGUMENT"
+    },
+    "message": "Invalid params for solar.describe: invalid type: integer `3`, expected a string."
+  },
+  "id": 1,
+  "jsonrpc": "2.0"
+}

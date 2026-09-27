@@ -1,0 +1,20 @@
+{
+  "name": "notification_is_refused",
+  "description": "A message without an id is refused, because every call gets a response",
+  "request_line": "{\"jsonrpc\":\"2.0\",\"method\":\"solar.ping\"}",
+  "response": {
+    "jsonrpc": "2.0",
+    "id": null,
+    "error": {
+      "code": -32600,
+      "message": "$any",
+      "data": {
+        "status": "INVALID_ARGUMENT",
+        "reason": "NOTIFICATION_NOT_SUPPORTED",
+        "details": "$any",
+        "meta": "$any"
+      }
+    }
+  },
+  "match": "subset"
+}

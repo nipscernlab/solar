@@ -1,0 +1,36 @@
+---
+source: crates/solar-apis/tests/snapshots_of_the_wire.rs
+expression: "answer(& r#\"{\"id\":1,\"method\":\"solar.ping\"}\"#.to_owned())"
+---
+{
+  "error": {
+    "code": -32600,
+    "data": {
+      "details": [
+        {
+          "docs": "docs/ERRORS.md#invalid_argument",
+          "expected": "\"2.0\"",
+          "field": "jsonrpc",
+          "hint": "Add \"jsonrpc\": \"2.0\" to the request.",
+          "received": null
+        }
+      ],
+      "meta": {
+        "api_version": null,
+        "arch": "[arch]",
+        "duration_us": "[duration]",
+        "method": null,
+        "os": "[os]",
+        "protocol": "solar/1",
+        "request_id": 1,
+        "solar_version": "[version]",
+        "started_at": "[timestamp]"
+      },
+      "reason": "MISSING_FIELD",
+      "status": "INVALID_ARGUMENT"
+    },
+    "message": "The request is missing the jsonrpc member."
+  },
+  "id": 1,
+  "jsonrpc": "2.0"
+}

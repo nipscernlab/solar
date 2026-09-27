@@ -1,0 +1,23 @@
+{
+  "name": "ping_bare",
+  "description": "A call with no parameters at all",
+  "request": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "solar.ping"
+  },
+  "response": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": {
+      "data": {
+        "pong": true,
+        "echo": null,
+        "received_at": "$any"
+      },
+      "meta": "$any",
+      "warnings": []
+    }
+  },
+  "match": "subset"
+}

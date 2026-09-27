@@ -1,0 +1,36 @@
+---
+source: crates/solar-apis/tests/snapshots_of_the_wire.rs
+expression: "answer(& r#\"{\"jsonrpc\":\"1.0\",\"id\":1,\"method\":\"solar.ping\"}\"#.to_owned())"
+---
+{
+  "error": {
+    "code": -32600,
+    "data": {
+      "details": [
+        {
+          "docs": "docs/ERRORS.md#invalid_argument",
+          "expected": "\"2.0\"",
+          "field": "jsonrpc",
+          "hint": "Set \"jsonrpc\": \"2.0\".",
+          "received": "1.0"
+        }
+      ],
+      "meta": {
+        "api_version": null,
+        "arch": "[arch]",
+        "duration_us": "[duration]",
+        "method": null,
+        "os": "[os]",
+        "protocol": "solar/1",
+        "request_id": 1,
+        "solar_version": "[version]",
+        "started_at": "[timestamp]"
+      },
+      "reason": "INVALID_VALUE",
+      "status": "INVALID_ARGUMENT"
+    },
+    "message": "The only JSON-RPC version SOLAR speaks is 2.0, and 1.0 arrived."
+  },
+  "id": 1,
+  "jsonrpc": "2.0"
+}

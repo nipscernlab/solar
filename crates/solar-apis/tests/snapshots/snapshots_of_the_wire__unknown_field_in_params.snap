@@ -1,0 +1,36 @@
+---
+source: crates/solar-apis/tests/snapshots_of_the_wire.rs
+expression: "answer(& request(\"solar.ping\", json!({\"mesage\": \"hi\"})))"
+---
+{
+  "error": {
+    "code": -32602,
+    "data": {
+      "details": [
+        {
+          "docs": "docs/ERRORS.md#invalid_argument",
+          "expected": "one of: message",
+          "field": "/mesage",
+          "hint": "There is no mesage parameter. Did you mean message? A call that works: {\"message\":\"hi\"}.",
+          "received": "hi"
+        }
+      ],
+      "meta": {
+        "api_version": "1.0.0",
+        "arch": "[arch]",
+        "duration_us": "[duration]",
+        "method": "solar.ping",
+        "os": "[os]",
+        "protocol": "solar/1",
+        "request_id": 1,
+        "solar_version": "[version]",
+        "started_at": "[timestamp]"
+      },
+      "reason": "UNKNOWN_FIELD",
+      "status": "INVALID_ARGUMENT"
+    },
+    "message": "Invalid params for solar.ping: unknown field `mesage`, expected `message`."
+  },
+  "id": 1,
+  "jsonrpc": "2.0"
+}

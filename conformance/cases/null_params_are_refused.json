@@ -1,0 +1,20 @@
+{
+  "name": "null_params_are_refused",
+  "description": "JSON-RPC 2.0 section 4.2 requires a structured value when params is present",
+  "request_line": "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"solar.ping\",\"params\":null}",
+  "response": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "error": {
+      "code": -32600,
+      "message": "$any",
+      "data": {
+        "status": "INVALID_ARGUMENT",
+        "reason": "TYPE_MISMATCH",
+        "details": "$any",
+        "meta": "$any"
+      }
+    }
+  },
+  "match": "subset"
+}

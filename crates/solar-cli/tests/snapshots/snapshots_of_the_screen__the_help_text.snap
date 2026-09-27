@@ -1,0 +1,33 @@
+---
+source: crates/solar-cli/tests/snapshots_of_the_screen.rs
+expression: "screen(&[\"--help\"])"
+---
+SOLAR speaks JSON-RPC 2.0 over standard input and output, one message per line. `solar call` prints the whole envelope, which is what any other interface would receive; the other commands are the same APIs with their output laid out for a person.
+
+The contract is docs/CONTRACT.md and the errors are docs/ERRORS.md.
+
+Usage: solar.exe [OPTIONS] <COMMAND>
+
+Commands:
+  call      Run one call and print the whole response envelope
+  serve     Answer requests on standard input until it ends, one JSON message per line
+  list      List every API this build answers to
+  describe  Describe one API, with its parameters, its errors and its examples
+  manifest  Print the manifest
+  version   Print the version of SOLAR and how this binary was built
+  help      Print this message or the help of the given subcommand(s)
+
+Options:
+      --pretty
+          Indent the JSON that goes to standard output
+
+      --log <LEVEL>
+          Diagnostics on standard error: off, error, warn, info, debug or trace
+
+  -h, --help
+          Print help (see a summary with '-h')
+
+  -V, --version
+          Print version
+
+Exit codes: 0 success, 2 invalid argument, 3 not found, 5 failed precondition, 8 deadline exceeded, 9 unavailable, 10 unimplemented, 11 internal. The whole table is in docs/CONTRACT.md.

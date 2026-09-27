@@ -1,0 +1,35 @@
+{
+  "name": "unknown_parameter_is_refused",
+  "description": "A misspelt parameter is an error, never a silent no-op",
+  "request": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "solar.ping",
+    "params": {
+      "mesage": "hi"
+    }
+  },
+  "response": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "error": {
+      "code": -32602,
+      "message": "$any",
+      "data": {
+        "status": "INVALID_ARGUMENT",
+        "reason": "UNKNOWN_FIELD",
+        "details": [
+          {
+            "field": "/mesage",
+            "expected": "$any",
+            "received": "hi",
+            "hint": "$any",
+            "docs": "docs/ERRORS.md#invalid_argument"
+          }
+        ],
+        "meta": "$any"
+      }
+    }
+  },
+  "match": "subset"
+}

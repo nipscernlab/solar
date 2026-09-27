@@ -1,0 +1,35 @@
+[package]
+name = "solar-fuzz"
+version = "0.0.0"
+edition = "2024"
+publish = false
+description = "Fuzzing targets for the SOLAR protocol; not part of the workspace"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+solar-apis = { path = "../crates/solar-apis" }
+solar-core = { path = "../crates/solar-core" }
+
+[[bin]]
+name = "envelope"
+path = "fuzz_targets/envelope.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "parameters"
+path = "fuzz_targets/parameters.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "session"
+path = "fuzz_targets/session.rs"
+test = false
+doc = false
+bench = false

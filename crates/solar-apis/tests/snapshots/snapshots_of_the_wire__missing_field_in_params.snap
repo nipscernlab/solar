@@ -1,0 +1,36 @@
+---
+source: crates/solar-apis/tests/snapshots_of_the_wire.rs
+expression: "answer(& request(\"solar.describe\", json!({})))"
+---
+{
+  "error": {
+    "code": -32602,
+    "data": {
+      "details": [
+        {
+          "docs": "docs/ERRORS.md#invalid_argument",
+          "expected": "string",
+          "field": "/api",
+          "hint": "Add api to params. A call that works: {\"api\":\"solar.ping\"}.",
+          "received": null
+        }
+      ],
+      "meta": {
+        "api_version": "1.0.0",
+        "arch": "[arch]",
+        "duration_us": "[duration]",
+        "method": "solar.describe",
+        "os": "[os]",
+        "protocol": "solar/1",
+        "request_id": 1,
+        "solar_version": "[version]",
+        "started_at": "[timestamp]"
+      },
+      "reason": "MISSING_FIELD",
+      "status": "INVALID_ARGUMENT"
+    },
+    "message": "Invalid params for solar.describe: missing field `api`."
+  },
+  "id": 1,
+  "jsonrpc": "2.0"
+}

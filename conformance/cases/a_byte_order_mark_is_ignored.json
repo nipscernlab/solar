@@ -1,0 +1,17 @@
+{
+  "name": "a_byte_order_mark_is_ignored",
+  "description": "Windows PowerShell writes one before the first line; RFC 8259 allows ignoring it",
+  "request_line": "﻿{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"solar.ping\"}",
+  "response": {
+    "jsonrpc": "2.0",
+    "id": 7,
+    "result": {
+      "data": {
+        "pong": true
+      },
+      "meta": "$any",
+      "warnings": []
+    }
+  },
+  "match": "subset"
+}

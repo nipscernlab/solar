@@ -1,0 +1,1 @@
+{"jsonrpc":"2.0","id":"a-string-id","method":"solar.ping","params":{"message":"hi"}}

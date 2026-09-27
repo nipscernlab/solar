@@ -1,0 +1,20 @@
+{
+  "name": "batch_is_unimplemented",
+  "description": "A JSON array is valid JSON-RPC that solar/1 does not implement",
+  "request_line": "[{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"solar.ping\"}]",
+  "response": {
+    "jsonrpc": "2.0",
+    "id": null,
+    "error": {
+      "code": -32007,
+      "message": "$any",
+      "data": {
+        "status": "UNIMPLEMENTED",
+        "reason": "BATCH_NOT_SUPPORTED",
+        "details": "$any",
+        "meta": "$any"
+      }
+    }
+  },
+  "match": "subset"
+}

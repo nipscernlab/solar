@@ -359,3 +359,29 @@ denied. The cost is one extra build tree, cached like any other; the first run o
 `xtask ci` after a change to the sources is slower than the second. CI itself runs the
 cargo commands directly, where nothing is running from the tree, so it keeps the default
 directory.
+
+### `loom` is not adopted, and here is what it would have to model
+
+The brief asks for `loom` if the reusable worker and the abandonment of an overrunning
+call have shared state it can model, and for the reason if not. They do not, in the sense
+that matters.
+
+What the worker actually shares is one `std::sync::mpsc` channel pair between exactly two
+threads, and one `Mutex<Vec<Warning>>` inside the context. There is no lock ordering,
+because there is one lock. There is no atomic of SOLAR's own anywhere: `grep -rn
+"atomic" crates/` finds nothing. The interleavings that could go wrong are the ones inside
+`mpsc` and `Mutex`, which are the standard library's to prove, not this repository's.
+
+Using `loom` would mean making `dispatch` generic over its synchronisation primitives, or
+duplicating it behind `cfg(loom)`, so that `loom::sync` could replace `std::sync`. That is
+a real change to the shape of the code under test, and what it would prove is that the
+standard library works.
+
+What is tested instead is the behaviour that the concurrency exists for, in
+`solar-core/tests/dispatch.rs`: a handler that panics is caught and the session survives,
+a handler that overruns is abandoned inside its budget, the next call does not wait for
+the abandoned one and does not receive its answer, and fifty calls in a row reuse one
+worker and stay correct. Those tests would fail if the channel handling were wrong.
+
+**Revisit when** dispatch gains a second lock, an atomic, or more than one worker thread.
+Any of the three makes the interleavings SOLAR's own, and then `loom` earns the change.

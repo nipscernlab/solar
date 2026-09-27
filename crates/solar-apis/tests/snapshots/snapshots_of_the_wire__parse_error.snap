@@ -1,0 +1,36 @@
+---
+source: crates/solar-apis/tests/snapshots_of_the_wire.rs
+expression: "answer(& \"{not json\".to_owned())"
+---
+{
+  "error": {
+    "code": -32700,
+    "data": {
+      "details": [
+        {
+          "docs": "docs/ERRORS.md#invalid_argument",
+          "expected": "a single JSON object on one line",
+          "field": null,
+          "hint": "Send exactly one JSON object per line. A newline inside a message ends it, so escape newlines inside strings as \\n.",
+          "received": "{not json"
+        }
+      ],
+      "meta": {
+        "api_version": null,
+        "arch": "[arch]",
+        "duration_us": "[duration]",
+        "method": null,
+        "os": "[os]",
+        "protocol": "solar/1",
+        "request_id": null,
+        "solar_version": "[version]",
+        "started_at": "[timestamp]"
+      },
+      "reason": "PARSE_ERROR",
+      "status": "INVALID_ARGUMENT"
+    },
+    "message": "The request is not valid JSON: key must be a string at line 1 column 2."
+  },
+  "id": null,
+  "jsonrpc": "2.0"
+}
