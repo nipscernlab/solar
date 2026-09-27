@@ -19,7 +19,7 @@ and bounded like everything else.
 | ---- | ------------------- | --------------------- |
 | **Batches**, answered in the order they were sent | contract 3.2, record [0010](docs/adr/0010-batches-answer-in-order.md) | property tests, four conformance cases, a fuzz target |
 | **`solar.cancel`**, an ordinary call, with a session that reads ahead | contract 9, record [0011](docs/adr/0011-cancelling-is-an-ordinary-call.md) | `crates/solar-apis/tests/cancellation.rs`, nine tests that drive the races on purpose |
-| **Four declared limits** so that memory is bounded | contract 8.3, 9.6, 9.7, 10 | a test at each limit, and the soak run below |
+| **Four declared limits** so that memory is bounded | contract 8.4, 9.6, 9.7, 10 | a test at each limit, and the soak run below |
 | **Shared definitions in the manifest** | contract 8.1 | `cargo xtask compat` resolves `$ref` before comparing, and is tested for both directions |
 | **`cargo xtask ci --fast`** | — | a test holds the full command to the workflow |
 | **`cargo xtask load`**, and the figures under load | — | the numbers below, reproducible with one command |
@@ -112,7 +112,7 @@ and taken out of the wall clock rather than counted as SOLAR's.
 
 **Memory does not grow with the calls a session answers.** A million requests left the
 resident set within half a mebibyte of where it started, and no higher than ten thousand
-had left it. That is what the limits of sections 8.3, 9.6, 9.7 and 10 exist to guarantee,
+had left it. That is what the limits of sections 8.4, 9.6, 9.7 and 10 exist to guarantee,
 and it is measured rather than argued.
 
 Errors are answered **faster** than successes, which was not guessed: an error response is
@@ -128,7 +128,7 @@ thread boundary that did not exist before: the reader puts it in the queue, the 
 woken, and the answer comes back. That is about 29 µs per call, and it is what buys a
 session that can be cancelled while a call is running.
 
-The obvious suspect was measured and cleared: the response size check of section 8.3
+The obvious suspect was measured and cleared: the response size check of section 8.4
 serialises `result.data` a second time, and removing it entirely raises the figure from
 15 095 to 16 180 per second with the p50 unchanged at 60 µs, so it is about 7% of the
 throughput and none of the latency. The thread handoff is the whole of the rest.

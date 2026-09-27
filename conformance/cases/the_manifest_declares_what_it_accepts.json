@@ -1,0 +1,47 @@
+{
+  "name": "the_manifest_declares_what_it_accepts",
+  "description": "A client reads the capabilities instead of discovering the limits by experiment",
+  "request": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "solar.manifest",
+    "params": {
+      "api": "solar.ping"
+    }
+  },
+  "response": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": {
+      "data": {
+        "schema_version": "2.1.0",
+        "protocol": "solar/1",
+        "capabilities": {
+          "batch": {
+            "accepted": true,
+            "max_elements": 64,
+            "ordered": true
+          },
+          "cancellation": {
+            "accepted": true,
+            "method": "solar.cancel"
+          },
+          "notifications": {
+            "accepted": false
+          },
+          "limits": {
+            "max_request_bytes": 16777216,
+            "max_queued_requests": 256,
+            "max_queued_bytes": 67108864,
+            "remembered_request_ids": 1024,
+            "max_abandoned_workers": 64,
+            "default_max_output_bytes": 8388608
+          }
+        }
+      },
+      "meta": "$any",
+      "warnings": []
+    }
+  },
+  "match": "subset"
+}

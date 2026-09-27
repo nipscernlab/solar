@@ -261,7 +261,7 @@ client does. The driver's own cost is inside every figure.
 
 **Memory does not grow with the calls a session answers.** A million requests left the
 resident set where ten thousand left it, within half a mebibyte of where it started, which
-is what the limits of sections 8.3, 9.6, 9.7 and 10 of the contract are for. Errors are
+is what the limits of sections 8.4, 9.6, 9.7 and 10 of the contract are for. Errors are
 answered faster than successes because an error is a smaller response and stops earlier.
 
 **Cancellation cost half of that throughput.** The same 10 000 pings ran at 28 814 per
