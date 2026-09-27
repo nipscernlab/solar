@@ -1,6 +1,8 @@
 <!-- The mark and its rules live in docs/brand. -->
-<img src="docs/brand/svg/lockup-light.svg#gh-light-mode-only" alt="SOLAR" height="72">
-<img src="docs/brand/svg/lockup-dark.svg#gh-dark-mode-only" alt="SOLAR" height="72">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/brand/svg/lockup-dark.svg">
+  <img alt="SOLAR" src="docs/brand/svg/lockup-light.svg" height="72">
+</picture>
 
 **The central API of the Constellation project, from NIPS-CERN.**
 
