@@ -43,5 +43,24 @@ protocol is stated here in its own line.
 - The hints of `solar list` and `solar describe` are pastable in the shell they name:
   `bash`, Windows PowerShell and `cmd.exe` disagree about quotes, so an example with
   parameters is printed once per shell.
+- `cargo xtask ci` runs what CI runs, in the same order and with the same flags, and a
+  test holds the two together. `cargo xtask compat <base>` classifies every change to the
+  manifest as additive or breaking and checks that the version of each API answers for
+  it; CI runs it on every pull request.
+- The test suite runs under `cargo-nextest`. Snapshots with `insta` freeze every error
+  envelope, the manifest and the human output. Property tests with `proptest` prove that
+  any line at all produces exactly one well formed response. `conformance/` holds
+  request and response pairs that a client in any language can replay, which was checked
+  from Python. Three `cargo-fuzz` targets run weekly on nightly.
+- A coverage floor of 91% of lines on the shipped crates, enforced by `cargo-llvm-cov`,
+  and a weekly mutation run with `cargo-mutants`.
+- `cargo-deny` for advisories, licences, sources and duplicates; Dependabot weekly;
+  every third-party action pinned by commit SHA; `SECURITY.md`.
+- `SOLAR_LOG_FORMAT=json` writes each diagnostic line as one JSON object naming the call.
+  `solar serve --stdio --record <file>` writes a session down and `solar replay <file>`
+  plays it back, ignoring what differs between two runs. A panic writes its backtrace
+  when `RUST_BACKTRACE` is set or the level is debug or finer.
+- `docs/STYLE.md`, `docs/adr/` with the nine settled decisions, `CONTRIBUTING.md`, a pull
+  request template and `CODEOWNERS`.
 
 [Unreleased]: https://github.com/nipscernlab/solar/commits/main

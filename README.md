@@ -269,7 +269,7 @@ fuzz/                           the fuzzing targets and their corpus
 ```bash no-run
 # no-run: every line below is its own CI step already; cargo bench takes minutes
 cargo build --release              # the solar binary
-cargo test --workspace             # 177 tests
+cargo nextest run --workspace       # 228 tests
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all -- --check
 cargo xtask manifest --check       # the manifest is not stale
