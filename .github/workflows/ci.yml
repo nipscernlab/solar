@@ -62,6 +62,11 @@ jobs:
           ./target/release/solar version
           ./target/release/solar list
 
+      # Every shell-tagged block of the Markdown runs in the shell it is written for:
+      # bash everywhere, powershell and cmd where they exist, which is the Windows job.
+      - name: The documentation runs
+        run: cargo run --package xtask --locked --quiet -- doc-run
+
   docs:
     name: documentation
     runs-on: ubuntu-latest

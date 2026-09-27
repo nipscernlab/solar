@@ -18,7 +18,8 @@ Read it aloud before you keep it.
 
 ## 2. Generate the file
 
-```
+```bash no-run
+# no-run: writes a file and edits the registry
 cargo xtask new-api build.run_target
 ```
 
@@ -81,7 +82,8 @@ Never write a value you have not seen a real run produce.
 
 ## 5. Run the tests
 
-```
+```bash no-run
+# no-run: the whole suite already runs as its own CI step
 cargo test -p solar-apis
 ```
 
@@ -96,7 +98,7 @@ to. `solar-core/tests/docs.rs` fails until both are there.
 
 ## 6. Regenerate the manifest
 
-```
+```bash
 cargo xtask manifest
 ```
 
@@ -105,7 +107,8 @@ versioned file is not what the generator produces.
 
 ## 7. Before you push
 
-```
+```bash no-run
+# no-run: each line is already its own CI step
 cargo fmt --all
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace

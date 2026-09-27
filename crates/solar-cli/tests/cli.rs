@@ -347,6 +347,43 @@ fn a_log_level_that_does_not_exist_is_refused_rather_than_ignored() {
 }
 
 #[test]
+fn call_logs_the_traffic_at_trace_level_and_nothing_by_default() {
+    // The defect this pins down: `solar call` used to leave standard error empty at
+    // trace level, while `solar serve --stdio` logged, and the README promised both.
+    let silent = solar(&["call", "solar.ping"]);
+    assert_eq!(silent.status.code(), Some(0));
+    assert!(
+        stderr_of(&silent).is_empty(),
+        "by default standard error carries nothing: {}",
+        stderr_of(&silent)
+    );
+
+    let traced = solar_with_env(&["call", "solar.ping"], "SOLAR_LOG", "trace");
+    assert_eq!(traced.status.code(), Some(0));
+    let diagnostics = stderr_of(&traced);
+    assert!(
+        diagnostics.contains("--> "),
+        "the request line is logged: {diagnostics}"
+    );
+    assert!(
+        diagnostics.contains("<-- "),
+        "the response line is logged: {diagnostics}"
+    );
+    assert!(
+        diagnostics.contains("solar.ping answered OK"),
+        "{diagnostics}"
+    );
+    assert_eq!(
+        stdout_of(&traced).lines().count(),
+        1,
+        "logging must never add a line to standard output"
+    );
+
+    let flagged = solar(&["--log", "trace", "call", "solar.ping"]);
+    assert!(stderr_of(&flagged).contains("--> "), "--log trace logs too");
+}
+
+#[test]
 fn asking_for_logs_puts_them_on_standard_error() {
     let output = solar_with_env(&["serve", "--stdio"], "SOLAR_LOG", "trace");
     assert_eq!(output.status.code(), Some(0));

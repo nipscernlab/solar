@@ -24,15 +24,18 @@ Three promises hold the design together.
 
 ## Try it
 
-```
+```bash
 cargo build --release
 ./target/release/solar list
 ./target/release/solar call solar.ping '{"message":"hi"}'
 ```
 
 ```json
-{"jsonrpc":"2.0","id":1,"result":{"data":{"echo":"hi","pong":true,"received_at":"2026-09-27T01:59:13.855362Z"},"meta":{"request_id":1,"method":"solar.ping","api_version":"1.0.0","solar_version":"0.1.0","protocol":"solar/1","started_at":"2026-09-27T01:59:13.855167Z","duration_us":203,"os":"windows","arch":"x86_64"},"warnings":[]}}
+{"jsonrpc":"2.0","id":1,"result":{"data":{"echo":"hi","pong":true,"received_at":"2026-09-27T02:58:14.819113Z"},"meta":{"request_id":1,"method":"solar.ping","api_version":"1.0.0","solar_version":"0.1.0","protocol":"solar/1","started_at":"2026-09-27T02:58:14.818953Z","duration_us":170,"os":"windows","arch":"x86_64"},"warnings":[]}}
 ```
+
+Every other command in this file writes `solar` bare; put `target/release` on the `PATH`,
+or install it once with `cargo install --path crates/solar-cli`.
 
 That is the whole envelope, exactly as any other caller receives it. `solar call` exists to
 show it.
@@ -42,7 +45,7 @@ show it.
 JSON-RPC 2.0 over standard input and output, one JSON message per line, the framing LSP and
 MCP use. No HTTP, no port, no gRPC.
 
-```
+```text
 --> {"jsonrpc": "2.0", "id": 1, "method": "solar.ping", "params": {"message": "hi"}}
 <-- {"jsonrpc": "2.0", "id": 1, "result": {"data": {...}, "meta": {...}, "warnings": []}}
 ```
@@ -56,11 +59,12 @@ Two deviations from JSON-RPC 2.0, both deliberate and both in the contract:
 An error carries a canonical status, the same eleven Google and gRPC use, a finer grained
 reason, and details that name the position, what was expected, what arrived, and what to do:
 
+```bash
+solar call solar.ping '{"mesage":"hi"}' || echo "exit $?"
 ```
-$ solar call solar.ping '{"mesage":"hi"}'
-```
+
 ```json
-{"jsonrpc":"2.0","id":1,"error":{"code":-32602,"message":"Invalid params for solar.ping: unknown field `mesage`, expected `message`.","data":{"status":"INVALID_ARGUMENT","reason":"UNKNOWN_FIELD","details":[{"field":"/mesage","expected":"one of: message","received":"hi","hint":"There is no mesage parameter. Did you mean message? A call that works: {\"message\":\"hi\"}.","docs":"docs/ERRORS.md#invalid_argument"}],"meta":{"request_id":1,"method":"solar.ping","api_version":"1.0.0","solar_version":"0.1.0","protocol":"solar/1","started_at":"2026-09-27T01:59:13.884399Z","duration_us":61,"os":"windows","arch":"x86_64"}}}}
+{"jsonrpc":"2.0","id":1,"error":{"code":-32602,"message":"Invalid params for solar.ping: unknown field `mesage`, expected `message`.","data":{"status":"INVALID_ARGUMENT","reason":"UNKNOWN_FIELD","details":[{"field":"/mesage","expected":"one of: message","received":"hi","hint":"There is no mesage parameter. Did you mean message? A call that works: {\"message\":\"hi\"}.","docs":"docs/ERRORS.md#invalid_argument"}],"meta":{"request_id":1,"method":"solar.ping","api_version":"1.0.0","solar_version":"0.1.0","protocol":"solar/1","started_at":"2026-09-27T02:58:14.846800Z","duration_us":71,"os":"windows","arch":"x86_64"}}}}
 ```
 
 The whole contract is [docs/CONTRACT.md](docs/CONTRACT.md), and it is normative. The error
@@ -93,9 +97,10 @@ SAPHO.
 | `solar manifest [--api NAME]` | The manifest, indented on a terminal and on one line in a pipe. |
 | `solar version` | The versions and the build. |
 
+```bash
+solar list
 ```
-$ solar list
-```
+
 ```text
 SOLAR 0.1.0 speaks solar/1, and answers to 5 APIs:
 
@@ -103,31 +108,56 @@ SOLAR 0.1.0 speaks solar/1, and answers to 5 APIs:
   solar.manifest      1.0.0    Returns the manifest of every API this build answers to
   solar.ping          1.0.0    Answers immediately, to prove SOLAR is there
   solar.version       1.0.0    Reports the version, the protocol and the build metadata
-  system.info         1.0.0    Reports the operating system, the processor and the process
+  system.info         1.1.0    Reports the operating system, the processor and the process
 
   solar describe <method>   everything about one of them
-  solar call <method> '{}'  the whole envelope, as an agent sees it
+  solar call <method>       the whole envelope, as an agent sees it
 ```
 
-### Quoting on Windows PowerShell
+### Quoting, shell by shell
 
-Windows PowerShell 5.1 removes double quotes before a native program sees them, so the
-obvious form arrives as `{message:hi}` and is refused. Two forms work:
+The parameters of `solar call` are one JSON object, and every shell rewrites quotes its own
+way before the binary sees them. Each line below was run in its shell on this machine, and
+the documentation runner in CI runs them again, in that shell, on every push.
+
+In `bash` and `zsh`, single quotes pass the object through untouched:
+
+```bash
+solar call solar.ping '{"message":"hi"}'
+echo '{"message":"hi"}' | solar call solar.ping -
+```
+
+In Windows PowerShell, plain double quotes are removed before the program sees them, so
+the object arrives as `{message:hi}` and is refused. Escape them inside single quotes, or
+pipe the object to `-`, which reads the parameters from standard input, where no shell
+rewrites anything. The escaped form breaks the moment the JSON holds a space; the pipe
+always works:
 
 ```powershell
 solar call solar.ping '{\"message\":\"hi\"}'
-'{"message":"hi"}' | solar call solar.ping -
+'{"message":"hi there"}' | solar call solar.ping -
 ```
 
-A single `-` reads the parameters from standard input, which no shell can mangle. On
-`bash`, `zsh` and `cmd.exe` the plain form works as written elsewhere in this file.
+In `cmd.exe`, single quotes are not quotes at all. Wrap the object in double quotes and
+escape the inner ones, or pipe it:
+
+```cmd
+solar call solar.ping "{\"message\":\"hi\"}"
+echo {"message":"hi"}| solar call solar.ping -
+```
+
+`solar describe <method>` prints its examples in exactly these three forms, one line per
+shell, so what is on screen is always pastable.
 
 The exit code follows the status, so a script never has to read the JSON to know what
 happened: `0` for success, `2` for `INVALID_ARGUMENT`, `3` for `NOT_FOUND`, and the rest in
 section 12 of the contract.
 
+```bash
+solar describe solar.pign || echo "exit $?"
 ```
-$ solar describe solar.pign ; echo "exit $?"
+
+```text
 solar: No API is registered under the name solar.pign.
   NOT_FOUND / API_NOT_FOUND
   /api: expected solar.ping
@@ -143,7 +173,8 @@ Standard output carries protocol and nothing else, and a test enforces it.
 
 One file and one line.
 
-```
+```bash no-run
+# no-run: this writes a file and edits the registry; the release checklist runs it instead
 cargo xtask new-api build.run_target
 ```
 
@@ -152,7 +183,7 @@ both in alphabetical order. The generated API compiles and passes the whole suit
 you touch it, so you start from something correct. Then fill in the parameters, the output,
 the description and the examples, and regenerate the manifest:
 
-```
+```bash
 cargo xtask manifest
 ```
 
@@ -196,7 +227,7 @@ request before reading the next, so responses come back in request order.
 
 ## Layout
 
-```
+```text
 Cargo.toml                      the workspace, the shared lints, the release profile
 crates/solar-core/              protocol, errors, metadata, the Api template, registry, dispatch
 crates/solar-apis/              the APIs, one file each, and the single registration list
@@ -212,13 +243,14 @@ docs/brand/                     the mark, its colours and its terminal form
 
 ## Building and checking
 
-```
-cargo build --release              the solar binary
-cargo test --workspace             177 tests
+```bash no-run
+# no-run: every line below is its own CI step already; cargo bench takes minutes
+cargo build --release              # the solar binary
+cargo test --workspace             # 177 tests
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all -- --check
-cargo xtask manifest --check       the manifest is not stale
-cargo bench                        the numbers above
+cargo xtask manifest --check       # the manifest is not stale
+cargo bench                        # the numbers in the table above
 ```
 
 All of it runs in CI on `ubuntu-latest`, `windows-latest` and `macos-latest`.

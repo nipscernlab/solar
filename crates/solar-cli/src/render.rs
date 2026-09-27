@@ -46,7 +46,7 @@ pub(crate) fn list<W: Write>(out: &mut W, manifest: &Value) -> std::io::Result<(
     )?;
     writeln!(
         out,
-        "  solar call <method> '{{}}'  the whole envelope, as an agent sees it"
+        "  solar call <method>       the whole envelope, as an agent sees it"
     )
 }
 
@@ -112,18 +112,42 @@ pub(crate) fn describe<W: Write>(out: &mut W, api: &Value) -> std::io::Result<()
                 text(example, "name"),
                 text(example, "description")
             )?;
-            writeln!(
-                out,
-                "    solar call {} '{}'",
-                text(api, "name"),
-                example
-                    .get("params")
-                    .map_or_else(|| "{}".to_owned(), ToString::to_string)
-            )?;
+            runnable_lines(out, text(api, "name"), example.get("params"))?;
         }
     }
     Ok(())
 }
+
+/// The lines that run one example, pastable in the shell each is labelled with.
+///
+/// No single inline form survives every shell: Windows PowerShell strips plain double
+/// quotes, `cmd.exe` does not treat single quotes as quotes, and the form that satisfies
+/// both of those breaks in PowerShell the moment the JSON holds a space. Each line below
+/// was verified in its shell, and the two Windows lines use `-`, which reads the
+/// parameters from standard input, where no shell rewrites them.
+fn runnable_lines<W: Write>(
+    out: &mut W,
+    method: &str,
+    params: Option<&Value>,
+) -> std::io::Result<()> {
+    let params = params.and_then(Value::as_object);
+    if params.is_none_or(serde_json::Map::is_empty) {
+        // Absent parameters are `{}` by contract, and a bare call works in every shell.
+        return writeln!(out, "    solar call {method}");
+    }
+    let json = Value::Object(params.cloned().unwrap_or_default()).to_string();
+    let bash = json.replace(APOSTROPHE, BASH_QUOTED_APOSTROPHE);
+    writeln!(out, "    bash        solar call {method} '{bash}'")?;
+    writeln!(out, "    powershell  '{json}' | solar call {method} -")?;
+    writeln!(out, "    cmd         echo {json}| solar call {method} -")
+}
+
+/// A single quote, which ends a single quoted string in `bash`.
+const APOSTROPHE: char = '\'';
+
+/// How a single quote is written inside a single quoted `bash` string: close it, escape
+/// one quote, open again.
+const BASH_QUOTED_APOSTROPHE: &str = r"'\''";
 
 /// The members of a parameter schema, one per line, required ones marked.
 fn parameters<W: Write>(out: &mut W, schema: &Value) -> std::io::Result<()> {
@@ -207,4 +231,41 @@ fn type_of(member: &Value) -> String {
 /// A member of an object as text, or a dash when it is absent.
 fn text<'a>(value: &'a Value, member: &str) -> &'a str {
     value.get(member).and_then(Value::as_str).unwrap_or("-")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn rendered(method: &str, params: &Value) -> String {
+        let mut out = Vec::new();
+        runnable_lines(&mut out, method, Some(params)).unwrap();
+        String::from_utf8(out).unwrap()
+    }
+
+    #[test]
+    fn empty_parameters_give_one_line_that_works_in_every_shell() {
+        let lines = rendered("solar.ping", &json!({}));
+        assert_eq!(lines, "    solar call solar.ping\n");
+    }
+
+    #[test]
+    fn parameters_give_one_pastable_line_per_shell() {
+        let lines = rendered("solar.ping", &json!({"message": "hi"}));
+        assert!(lines.contains(r#"bash        solar call solar.ping '{"message":"hi"}'"#));
+        assert!(lines.contains(r#"powershell  '{"message":"hi"}' | solar call solar.ping -"#));
+        assert!(lines.contains(r#"cmd         echo {"message":"hi"}| solar call solar.ping -"#));
+    }
+
+    #[test]
+    fn an_apostrophe_in_the_parameters_survives_the_bash_quoting() {
+        let lines = rendered("solar.ping", &json!({"message": "it's"}));
+        let bash_line = lines.lines().find(|line| line.contains("bash")).unwrap();
+        // Close the quote, escape one apostrophe, open again: the shell reassembles it's.
+        assert!(
+            bash_line.ends_with(r#"'{"message":"it'\''s"}'"#),
+            "{bash_line}"
+        );
+    }
 }

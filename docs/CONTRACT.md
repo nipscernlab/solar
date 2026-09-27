@@ -85,7 +85,7 @@ silent no-op.
 A method name is `namespace.verb_noun`: lowercase ASCII, words inside a segment joined by
 underscores, segments joined by dots. The normative regular expression is
 
-```
+```text
 ^[a-z]+(\.[a-z]+(_[a-z]+)*)+$
 ```
 

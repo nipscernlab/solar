@@ -49,7 +49,7 @@ WCAG contrast, computed: gold on night 12.10:1, mist on night 17.30:1, copper on
 
 With text beside it, leave three spaces after the symbol, so text starts at column 19 (0-based). Line 3, the one whose slot opens to the right, carries the name:
 
-```
+```text
    ▄▄██████▄▄
  ▄████████████▄
 ▄████              SOLAR

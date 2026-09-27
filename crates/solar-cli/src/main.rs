@@ -142,10 +142,21 @@ fn call(
     let response = match read_params(method, params) {
         Ok(params) => {
             let request = json!({"jsonrpc": "2.0", "id": 1, "method": method, "params": params});
-            dispatcher.handle_line(&request.to_string())
+            let line = request.to_string();
+            // One call logs what a session would log for it: the line in, the line out.
+            logging::trace(&format!("--> {line}"));
+            dispatcher.handle_line(&line)
         }
         Err(response) => *response,
     };
+    logging::trace(&format!("<-- {}", response.to_line()));
+    logging::info(&format!(
+        "{method} answered {} in {} us",
+        response
+            .status()
+            .map_or_else(|| "OK".to_owned(), |status| status.to_string()),
+        response_duration_us(&response)
+    ));
 
     let text = if pretty {
         response.to_pretty()
@@ -244,6 +255,16 @@ fn serve(dispatcher: &Dispatcher, stdio: bool) -> std::io::Result<ExitCode> {
     }
     solar_core::server::serve(stdin.lock(), stdout.lock(), dispatcher)?;
     Ok(ExitCode::SUCCESS)
+}
+
+/// The `duration_us` a response carries, for the log line about it.
+fn response_duration_us(response: &Response) -> u64 {
+    let meta = response
+        .result
+        .as_ref()
+        .map(|body| &body.meta)
+        .or_else(|| response.error.as_ref().map(|body| &body.data.meta));
+    meta.map_or(0, |meta| meta.duration_us)
 }
 
 /// The exit code a response deserves, from the table in section 12 of the contract.
