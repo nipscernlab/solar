@@ -7,9 +7,15 @@
 //! convention is that its first line is a comment saying why.
 //!
 //! Blocks run from the repository root with `target/release` first on the `PATH`, which
-//! this task builds first. `powershell` means Windows PowerShell 5.1, the shell whose
-//! quoting the README documents, so it and `cmd` only run on Windows; `bash` runs
-//! everywhere, through Git Bash on Windows.
+//! this task builds first. The binary goes to the *default* target directory, because
+//! the documentation writes `./target/release/solar` and that path has to be true for a
+//! reader who types it. A `cargo` command *inside* a block builds somewhere else, named
+//! by `target`, so that a block running `cargo xtask` cannot relink the binary that is
+//! running it.
+//!
+//! `powershell` means Windows PowerShell 5.1, the shell whose quoting the README
+//! documents, so it and `cmd` only run on Windows; `bash` runs everywhere, through Git
+//! Bash on Windows.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -67,7 +73,9 @@ impl Shell {
 ///
 /// Returns a sentence per failed block, joined, so a run reports every failure at once.
 pub(crate) fn run(root: &Path, target: &Path) -> Result<(), String> {
-    build_the_binary(root, target)?;
+    // The documentation names `./target/release/solar`, so that is where it is built.
+    let default_target = crate::flags::target_dir(root);
+    build_the_binary(root, &default_target)?;
 
     let mut blocks = Vec::new();
     for file in markdown_files(root) {
@@ -76,7 +84,7 @@ pub(crate) fn run(root: &Path, target: &Path) -> Result<(), String> {
         collect(&file, &text, &mut blocks);
     }
 
-    let path_with_release = prepend_path(&target.join("release"));
+    let path_with_release = prepend_path(&default_target.join("release"));
     let mut failures = Vec::new();
     let (mut ran, mut skipped) = (0usize, 0usize);
 

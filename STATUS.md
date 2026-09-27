@@ -66,8 +66,8 @@ below.
 
 The whole of the two library crates is 538 mutants, and measuring it on this laptop takes
 hours, because each mutant rebuilds and reruns the suite. That is the weekly job's work,
-and the first run that will report an honest number is the one after finding 7 below,
-since the configuration was not being read before it. The number to expect is lower than
+and the first run that will report an honest number is the one after finding 8 below,
+since the configuration was not being read before it, which is finding 8. The number to expect is lower than
 the coverage: coverage says 91% of lines ran, and mutation asks the harder question.
 
 ## What the new checks found, on the day they were written
@@ -93,7 +93,13 @@ Each of these was a real defect, found by the thing built to find it.
 6. **`cargo xtask ci` could not run its own tests on Windows**, because the nested
    `cargo test` relinks the binary that is running. Found by running it. Nested builds
    now use a target directory of their own.
-7. **The mutation configuration was never being read.** `cargo-mutants` looks for
+7. **A fresh clone could not run `cargo xtask ci`.** The documentation says
+   `./target/release/solar`, and the documentation runner was building the binary into
+   the nested target directory that `xtask ci` gives its children, so the path in the
+   README was true only on a machine that had already built by hand. Found by cloning
+   the repository into a temporary directory and running the one command, which is now
+   how this stage is declared finished.
+8. **The mutation configuration was never being read.** `cargo-mutants` looks for
    `.cargo/mutants.toml`, not `mutants.toml`, so the weekly run mutated the developer
    tools as well and reported 218 survivors that were mostly in `xtask`. Found by
    reading the first weekly run instead of trusting it.
