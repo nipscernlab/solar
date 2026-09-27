@@ -43,7 +43,6 @@ pub mod clock;
 pub mod context;
 pub mod dispatch;
 pub mod error;
-pub mod exec;
 pub mod logging;
 pub mod manifest;
 pub mod matching;

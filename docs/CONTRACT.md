@@ -5,7 +5,7 @@
 This document defines the wire protocol of SOLAR, the central API of the Constellation
 project. It is normative: where this document and the implementation disagree, the
 implementation is wrong. Every rule stated here is enforced by a test, and the tests that
-enforce it are named in [Conformance](#12-conformance).
+enforce it are named in [Conformance](#11-conformance).
 
 The key words MUST, MUST NOT, SHOULD and MAY are used in the sense of RFC 2119.
 
@@ -226,7 +226,7 @@ Every API publishes a specification, and the manifest is the sum of those specif
 | `summary`       | One line, no full stop, what the API does.                                     |
 | `description`   | Prose. What it is for, what it guarantees, what it does not do.                |
 | `errors`        | Every `{status, reason}` pair the API may return, on top of the ones dispatch itself can produce. A pair that is not declared and is then returned is a bug. |
-| `side_effects`  | A set drawn from `none`, `reads_filesystem`, `writes_filesystem`, `spawns_process`, `network`. `none` is exclusive: it cannot appear with another value. |
+| `side_effects`  | A set drawn from `none`, `reads_filesystem`, `writes_filesystem`, `spawns_process`, `network`. `none` is exclusive: it cannot appear with another value. No API in `solar/1` writes, starts a process or uses the network; the vocabulary exists for the ones that will. |
 | `idempotent`    | Whether calling twice with the same parameters has the same effect as calling once. |
 | `stability`     | `experimental`, `stable` or `deprecated`.                                      |
 | `since`         | The SOLAR version in which the API first appeared, not the API's own version.  |
@@ -256,30 +256,7 @@ example pins down the shape of a timestamp, a path or a duration without pretend
 the value. An example never states a value that the machine running the test cannot
 reproduce.
 
-## 9. Running external programs
-
-When an API runs a program, the response reports the run in full, with these members:
-
-| Member        | Meaning                                                                     |
-| ------------- | --------------------------------------------------------------------------- |
-| `command`     | The exact argument vector, program first, as it was handed to the operating system. |
-| `exit_code`   | The exit status, or `null` when the process was killed by a signal or by the timeout. |
-| `duration_ms` | Wall clock milliseconds from spawn to reap.                                  |
-| `stdout`      | Captured standard output, truncated.                                         |
-| `stderr`      | Captured standard error, truncated.                                          |
-| `truncated`   | Whether either stream was cut.                                               |
-| `stdout_bytes`, `stderr_bytes` | The original size in bytes before truncation.               |
-
-Each stream is captured up to **65536 bytes**. When a stream is longer, the first 65536
-bytes are kept, `truncated` is `true`, and the original size stays in `*_bytes`, so a caller
-always knows what it is not seeing. Captured text is decoded as UTF-8 with invalid
-sequences replaced, never rejected: a tool that prints a stray byte is still reported.
-
-A program that exits with a non zero status is not automatically an error of the call. Each
-API says what it does with an exit code, and a program that is simply absent is reported as
-absent, not as a failure.
-
-## 10. Timeouts, panics and cancellation
+## 9. Timeouts, panics and cancellation
 
 - Dispatch runs every handler on a worker thread and waits for `timeout_ms`.
 - A handler that panics produces `INTERNAL` / `HANDLER_PANIC`, with the panic message and
@@ -288,10 +265,10 @@ absent, not as a failure.
   The response goes out immediately. **The worker thread is abandoned, not killed**: Rust
   has no safe way to kill a thread. An abandoned handler keeps running until it finishes,
   and its result is discarded. Handlers are therefore written so that their own internal
-  budgets are shorter than `timeout_ms`, and child processes get their own kill on timeout.
+  budgets are shorter than `timeout_ms`.
 - There is no cancellation message in `solar/1`.
 
-## 11. Versions
+## 10. Versions
 
 - **Protocol**: `solar/1`. The number changes only when an existing message shape changes in
   a way that breaks a caller. Adding an API never changes it.
@@ -301,7 +278,7 @@ absent, not as a failure.
   manifest whose major differs from the one it was written against.
 - **SOLAR**: the version of the build, reported in `meta.solar_version`.
 
-## 12. Conformance
+## 11. Conformance
 
 Every rule above is enforced mechanically. A change that breaks one of them fails a test
 instead of waiting for a human reviewer.
@@ -321,7 +298,7 @@ instead of waiting for a human reviewer.
 | The status to code table and the reason catalogue agree with `docs/ERRORS.md` | `solar-core/tests/docs.rs` |
 | Standard output carries protocol only, even with `SOLAR_LOG=trace` | `solar-cli/tests/cli.rs::logging_never_touches_stdout` |
 
-## 13. Exit codes of the `solar` binary
+## 12. Exit codes of the `solar` binary
 
 `solar call` prints the whole response envelope on standard output and then exits with a
 code derived from the response, so that a shell script never has to parse JSON to know what

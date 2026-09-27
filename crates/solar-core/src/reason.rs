@@ -61,20 +61,10 @@ reasons! {
         "The `method` of the request is not registered.";
     ApiNotFound => "API_NOT_FOUND", Status::NotFound,
         "An API was asked about by name and is not registered.";
-    UnknownTool => "UNKNOWN_TOOL", Status::NotFound,
-        "A tool was asked for that `tools/known_tools.toml` does not describe.";
-    ToolTableInvalid => "TOOL_TABLE_INVALID", Status::FailedPrecondition,
-        "The table of known tools could not be read.";
-    AccessDenied => "ACCESS_DENIED", Status::PermissionDenied,
-        "The operating system refused to execute a program that is there.";
     MessageTooLarge => "MESSAGE_TOO_LARGE", Status::ResourceExhausted,
         "A request line went past the 16 MiB limit.";
     HandlerTimeout => "HANDLER_TIMEOUT", Status::DeadlineExceeded,
         "The API did not finish within the `timeout_ms` it declares.";
-    ProgramTimeout => "PROGRAM_TIMEOUT", Status::DeadlineExceeded,
-        "An external program ran past its budget and was killed.";
-    SpawnFailed => "SPAWN_FAILED", Status::Unavailable,
-        "A program is there and the operating system refused to start it.";
     ThreadSpawnFailed => "THREAD_SPAWN_FAILED", Status::Unavailable,
         "SOLAR could not start the worker thread a call runs on.";
     EnvironmentUnavailable => "ENVIRONMENT_UNAVAILABLE", Status::Unavailable,

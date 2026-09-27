@@ -238,7 +238,7 @@ fn elapsed_us(start: Instant) -> u64 {
 ///
 /// Three things can come back: an output, an error the handler built, or a panic. A fourth
 /// case is that nothing comes back in time, and that is what the budget is for. The thread
-/// is abandoned rather than killed, which section 10 of the contract states plainly,
+/// is abandoned rather than killed, which section 9 of the contract states plainly,
 /// because there is no safe way to kill a thread in Rust.
 fn run_with_budget(
     ctx: &Arc<Context>,

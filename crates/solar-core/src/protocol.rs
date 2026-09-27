@@ -709,12 +709,15 @@ mod response_tests {
     #[test]
     fn warnings_travel_beside_a_successful_result() {
         let warnings = vec![Warning::new(
-            WarningCode::VersionNotParsed,
-            "No version was recognised.",
+            WarningCode::BuildMetadataIncomplete,
+            "The commit is unknown.",
         )];
         let response = Response::success(None, Value::Null, meta(), warnings);
         let json: Value = serde_json::from_str(&response.to_line()).unwrap();
-        assert_eq!(json["result"]["warnings"][0]["code"], "VERSION_NOT_PARSED");
+        assert_eq!(
+            json["result"]["warnings"][0]["code"],
+            "BUILD_METADATA_INCOMPLETE"
+        );
     }
 
     #[test]

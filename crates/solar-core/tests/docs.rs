@@ -6,6 +6,11 @@
 //! when a reason is documented under the wrong status, or when a number in a table stops
 //! matching the number the code uses.
 
+// A test reports failure by panicking, so the lints that forbid it in production code are
+// lifted here. Integration tests are their own crate, which is why `clippy.toml` does not
+// cover them.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use std::path::{Path, PathBuf};
 
 use solar_core::reason::Reason;
@@ -48,8 +53,11 @@ fn headings(document: &str) -> Vec<(usize, String)> {
 #[test]
 fn every_status_has_a_section_of_its_own() {
     let errors = read("docs/ERRORS.md");
-    let documented: Vec<String> =
-        headings(&errors).into_iter().filter(|(level, _)| *level == 2).map(|(_, t)| t).collect();
+    let documented: Vec<String> = headings(&errors)
+        .into_iter()
+        .filter(|(level, _)| *level == 2)
+        .map(|(_, t)| t)
+        .collect();
 
     for status in Status::ALL {
         assert!(
@@ -136,7 +144,12 @@ fn the_anchor_every_error_points_at_really_exists() {
     let errors = read("docs/ERRORS.md");
     let anchors: Vec<String> = headings(&errors)
         .into_iter()
-        .map(|(_, heading)| format!("docs/ERRORS.md#{}", heading.to_lowercase().replace(' ', "-")))
+        .map(|(_, heading)| {
+            format!(
+                "docs/ERRORS.md#{}",
+                heading.to_lowercase().replace(' ', "-")
+            )
+        })
         .collect();
 
     for status in Status::ALL {
@@ -174,7 +187,10 @@ fn the_exit_code_table_of_the_contract_matches_the_code() {
             .lines()
             .find(|line| line.starts_with(&needle))
             .unwrap_or_else(|| {
-                panic!("docs/CONTRACT.md has no exit code row for {}", status.exit_code())
+                panic!(
+                    "docs/CONTRACT.md has no exit code row for {}",
+                    status.exit_code()
+                )
             });
         assert!(
             row.contains(status.as_str()),
@@ -190,10 +206,6 @@ fn the_contract_states_the_limit_the_code_enforces() {
     assert!(
         contract.contains(&solar_core::protocol::MAX_REQUEST_BYTES.to_string()),
         "docs/CONTRACT.md does not state the request size limit the code enforces"
-    );
-    assert!(
-        contract.contains(&solar_core::exec::MAX_CAPTURE_BYTES.to_string()),
-        "docs/CONTRACT.md does not state the capture limit the code enforces"
     );
     assert!(contract.contains(solar_core::meta::PROTOCOL));
 }

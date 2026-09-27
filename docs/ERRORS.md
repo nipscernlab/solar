@@ -12,10 +12,6 @@ Errors are linked from responses through the `docs` member of every detail entry
 form `docs/ERRORS.md#<status in lowercase>`, so a reader always lands on the status section
 and finds the reason just below it.
 
-A reason can also appear inside `result.data` when an API reports a failure of one item
-without failing the whole call. `tools.detect` does exactly that: a tool that cannot be run
-carries `{status, reason, message}` while the call itself succeeds.
-
 ## How to read an error
 
 ```json
@@ -115,14 +111,6 @@ suggestion mechanism as `METHOD_NOT_FOUND`. The distinction matters: `METHOD_NOT
 means *the call you made does not exist*, while `API_NOT_FOUND` means *the call you made
 exists and the thing you asked it about does not*.
 
-### UNKNOWN_TOOL
-
-`tools.detect` was asked for a tool that is not described in `tools/known_tools.toml`.
-Detection only covers the tools in that table, so that results are reproducible and so that
-SOLAR never runs an arbitrary program named by the caller.
-
-`details` lists the closest known names. Add the tool to the table to make it detectable.
-
 ## ALREADY_EXISTS
 
 JSON-RPC code `-32001`. Not retriable. Creating something that is already there.
@@ -135,24 +123,15 @@ in the status to code table, and it is reserved for the first API that writes so
 JSON-RPC code `-32002`. Not retriable without changing the state of the system first. The
 request is well formed, and the system is not in a state where it can be served.
 
-### TOOL_TABLE_INVALID
-
-The table of known tools could not be read. This happens when `SOLAR_KNOWN_TOOLS` points at
-a file that does not exist, cannot be read, is not valid TOML, or describes a tool with an
-empty name or an empty command.
-
-`details` carries the path and the parser message. Fix the file, or unset the variable to
-fall back to the table built into the binary.
+No API in `solar/1` returns this status. It is reserved for the first API that depends on
+something being prepared beforehand.
 
 ## PERMISSION_DENIED
 
 JSON-RPC code `-32003`. Not retriable as the same user. The operating system refused.
 
-### ACCESS_DENIED
-
-A program was found on the `PATH` and the operating system refused to execute it. In
-`tools.detect` this appears inside the entry for that tool, with `found: true`, while the
-call itself succeeds.
+No API in `solar/1` returns this status. It is reserved for the first API that opens a
+file it may not open, or starts a program it may not start.
 
 ## RESOURCE_EXHAUSTED
 
@@ -177,21 +156,9 @@ response is sent immediately. The worker thread is abandoned rather than killed,
 Rust has no safe way to kill a thread; it keeps running until it finishes and its result is
 thrown away. `details` reports the budget and the method.
 
-### PROGRAM_TIMEOUT
-
-An external program did not finish within its own budget and was killed. In `tools.detect`
-this appears inside the entry for that tool, with `exit_code: null`, while the call itself
-succeeds.
-
 ## UNAVAILABLE
 
 JSON-RPC code `-32006`. Retriable. Something SOLAR depends on is not there right now.
-
-### SPAWN_FAILED
-
-A program was found and the operating system refused to start it for a reason other than
-permission: a broken symbolic link, a binary for the wrong architecture, a missing shared
-library. `details` carries the operating system message.
 
 ### THREAD_SPAWN_FAILED
 
@@ -253,22 +220,6 @@ the canonical list is complete and so that a caller has a sensible default arm i
 A warning travels in `result.warnings` when a call succeeded and the caller still needs to
 know something. Each one is `{"code": "...", "message": "..."}`. The codes are closed and
 documented here, exactly like reasons.
-
-### TOOL_TABLE_OVERRIDDEN
-
-`SOLAR_KNOWN_TOOLS` is set, so the table of known tools came from that file instead of the
-one built into the binary. Results are only as reproducible as that file.
-
-### VERSION_NOT_PARSED
-
-A tool ran and printed something, and no version could be recognised in its output. The raw
-output is reported unchanged in the entry for that tool, so a caller can still read it.
-
-### TOOL_EXITED_NON_ZERO
-
-A tool was found and its version command exited with a non zero status. The output is
-reported as it came. Some tools print their version and exit non zero; that alone is not
-treated as a failure.
 
 ### BUILD_METADATA_INCOMPLETE
 

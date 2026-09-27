@@ -122,12 +122,12 @@ mod tests {
     fn warnings_come_back_in_the_order_they_were_recorded() {
         let ctx = context(Duration::from_secs(1));
         assert!(ctx.warnings().is_empty());
-        ctx.warn(WarningCode::VersionNotParsed, "First.");
-        ctx.warn(WarningCode::ToolExitedNonZero, "Second.");
+        ctx.warn(WarningCode::BuildMetadataIncomplete, "First.");
+        ctx.warn(WarningCode::BuildMetadataIncomplete, "Second.");
         let warnings = ctx.warnings();
         assert_eq!(warnings.len(), 2);
         assert_eq!(warnings[0].message, "First.");
-        assert_eq!(warnings[1].code, WarningCode::ToolExitedNonZero);
+        assert_eq!(warnings[1].code, WarningCode::BuildMetadataIncomplete);
     }
 
     #[test]

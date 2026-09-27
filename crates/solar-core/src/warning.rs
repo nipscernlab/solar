@@ -35,12 +35,6 @@ macro_rules! warning_codes {
 }
 
 warning_codes! {
-    ToolTableOverridden => "TOOL_TABLE_OVERRIDDEN",
-        "`SOLAR_KNOWN_TOOLS` is set, so the table came from that file.";
-    VersionNotParsed => "VERSION_NOT_PARSED",
-        "A tool ran and no version could be recognised in its output.";
-    ToolExitedNonZero => "TOOL_EXITED_NON_ZERO",
-        "A tool was found and its version command exited with a non zero status.";
     BuildMetadataIncomplete => "BUILD_METADATA_INCOMPLETE",
         "Part of the build metadata was not available when SOLAR was compiled.";
 }
@@ -90,13 +84,16 @@ mod tests {
 
     #[test]
     fn a_warning_serialises_to_code_and_message() {
-        let warning = Warning::new(WarningCode::VersionNotParsed, "No version was recognised.");
+        let warning = Warning::new(
+            WarningCode::BuildMetadataIncomplete,
+            "The commit is unknown.",
+        );
         let json = serde_json::to_value(&warning).unwrap();
         assert_eq!(
             json,
             serde_json::json!({
-                "code": "VERSION_NOT_PARSED",
-                "message": "No version was recognised."
+                "code": "BUILD_METADATA_INCOMPLETE",
+                "message": "The commit is unknown."
             })
         );
     }
