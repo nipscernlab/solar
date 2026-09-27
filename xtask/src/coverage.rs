@@ -5,7 +5,10 @@
 //! when this was written, rounded down, and CI refuses a change that goes below it.
 //!
 //! What is measured is the three crates that ship: `solar-core`, `solar-apis` and
-//! `solar-cli`. `xtask` is left out on purpose and [`why_xtask_is_excluded`] says why.
+//! `solar-cli`. `xtask` is left out on purpose: it is run by the pipeline rather than by
+//! the tests, since `ci`, `doc-run` and `leak-check` *are* the pipeline. Measuring it
+//! would count the harness as if it were the product, and would push the floor down
+//! every time a task is added.
 //!
 //! Coverage says which lines ran. It does not say whether anything checked what they did,
 //! which is what `cargo xtask mutants` is for.
@@ -21,13 +24,6 @@ pub(crate) const FLOOR: u32 = 91;
 
 /// The crates that ship, and therefore the crates that are measured.
 const MEASURED: [&str; 3] = ["solar-core", "solar-apis", "solar-cli"];
-
-/// Why the developer tool is not part of the number.
-pub(crate) const fn why_xtask_is_excluded() -> &'static str {
-    "xtask is run by the pipeline rather than by the tests: `ci`, `doc-run` and \
-     `leak-check` are the pipeline. Measuring it would count the harness as if it were \
-     the product, and would push the floor down every time a task is added."
-}
 
 /// Runs the tests under instrumentation and reports the coverage.
 ///
