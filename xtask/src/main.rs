@@ -25,6 +25,7 @@ mod coverage;
 mod doc_run;
 mod flags;
 mod leak_check;
+mod load;
 mod mutants;
 mod new_api;
 
@@ -50,6 +51,7 @@ fn main() -> ExitCode {
             // `main` is what a pull request is compared against by default.
             _ => compat::run(&root(), "main"),
         },
+        "load" => load::run(&root(), &rest),
         "doc-run" => doc_run::run(&root(), &flags::target_dir(&root())),
         "leak-check" => leak_check::run(&root(), &flags::target_dir(&root())),
         "new-api" => match rest.first() {
@@ -95,6 +97,10 @@ cargo xtask <task>
                       --report also writes lcov and HTML into target/coverage
   mutants [args...]   change the code and see whether a test fails; --in-diff origin/main
                       narrows it to what this branch touched
+  load [--requests N] drive a real session through N requests, default 10000, and report
+      [--mixed]       throughput, latency and the memory the server held; --mixed makes
+      [--soak]        every other call an error, --soak sends a million and says whether
+                      the memory grew
   doc-run             run every shell-tagged block of the documentation in its shell
   leak-check          prove the release binary embeds no local path
   new-api <name>      write a new API from the template and register it

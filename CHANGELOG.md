@@ -36,6 +36,11 @@ protocol is stated here in its own line.
   which dispatch refuses the response with `OUTPUT_TOO_LARGE`.
 - An `id` that belongs to an unanswered call is refused for a new request with
   `ID_IN_FLIGHT`, since cancellation targets a call by `id`.
+- `cargo xtask load`, which drives a real session through 10 000 requests, and
+  `--soak`, which sends a million, reporting throughput, the latency percentiles and the
+  resident memory of the server. The figures are in the README.
+- `crates/solar-apis/tests/heap.rs`, which counts what one `solar.ping` allocates with
+  `dhat` and holds a ceiling, so a change that allocates more has to say why.
 - `cargo xtask changelog [<base>]`, and the same step in CI: a change under `crates/`
   comes with an entry here. It is the part a machine can check of the fixed rule that
   code and documentation move together, which `AGENTS.md` states and the pull request

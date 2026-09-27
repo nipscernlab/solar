@@ -241,6 +241,28 @@ Criterion reports a confidence interval; the middle figure is quoted.
 Reproduce them with `cargo bench`. The two process level numbers are in
 `crates/solar-cli/benches/binary.rs` and the rest in `crates/solar-apis/benches/dispatch.rs`.
 
+### Under load
+
+A benchmark measures one call at a time on an idle machine, which says nothing about what
+a session costs. `cargo xtask load` drives a real `solar serve --stdio` through a real
+pipe, sending the next request only once the last response has been read, which is what a
+client does. The driver's own cost is inside every figure.
+
+| Run | Throughput | p50 | p99 | Max | Resident memory |
+| --- | ---------- | --- | --- | --- | ---------------- |
+| 10 000 pings | **28 814 per second** | 32 µs | 51 µs | 348 µs | 4 412 KiB to 4 860 KiB |
+| 10 000 calls, every other one an error | **34 773 per second** | 27 µs | 44 µs | 259 µs | 4 408 KiB to 4 884 KiB |
+| 1 000 000 pings, `cargo xtask load --soak` | **29 112 per second** | 31 µs | 59 µs | 4 246 µs | 4 404 KiB to 4 856 KiB, ending at 4 812 KiB |
+
+**Memory does not grow with the calls a session answers.** A million requests left the
+resident set where ten thousand left it, within half a mebibyte of where it started, which
+is what the bounds of sections 9.6 and 9.7 of the contract are for. Errors are answered
+faster than successes because an error is a smaller response and stops earlier.
+
+One `solar.ping` allocates **51 blocks and 5 278 bytes**, measured with `dhat` in
+`crates/solar-apis/tests/heap.rs`, which holds a ceiling so that a change that allocates
+more has to say why.
+
 One measurement changed the design. Dispatch runs every handler on a worker thread, so
 that a panic cannot take the session down and a budget can be enforced. Starting a thread
 for each call cost about 70 µs of the 77 µs a ping took, which was more than everything
