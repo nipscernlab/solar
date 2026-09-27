@@ -306,12 +306,20 @@ fn a_session_can_be_recorded_and_played_back() {
     assert_eq!(served.status.code(), Some(0));
     assert_eq!(stdout_of(&served).lines().count(), 2);
 
-    // Two requests and two responses. A session reads on a thread of its own, so the
-    // recording is a chronological log rather than strict alternation: what is promised
-    // is that every line that crossed is in it, with the time it crossed.
+    // A header, then two requests and two responses. A session reads on a thread of its
+    // own, so the recording is a chronological log rather than strict alternation: what
+    // is promised is that every line that crossed is in it, with the time it crossed.
     let written = std::fs::read_to_string(&recording).expect("the recording exists");
-    let entries: Vec<Value> = written.lines().map(parse).collect();
-    assert_eq!(entries.len(), 4);
+    let lines: Vec<Value> = written.lines().map(parse).collect();
+    assert_eq!(lines.len(), 5, "a header and four lines that crossed");
+
+    let header = &lines[0];
+    assert_eq!(header["solar_recording"], "1.0.0", "the format version");
+    assert_eq!(header["protocol"], "solar/1");
+    assert!(header["solar_version"].is_string());
+    assert!(header["at"].as_str().unwrap().ends_with('Z'));
+
+    let entries = &lines[1..];
     let directions: Vec<&str> = entries
         .iter()
         .map(|entry| entry["direction"].as_str().unwrap())
@@ -365,7 +373,12 @@ fn replaying_something_that_is_not_a_recording_says_so() {
         .output()
         .expect("runs");
     assert_eq!(output.status.code(), Some(2), "INVALID_ARGUMENT");
-    assert!(stderr_of(&output).contains("is not a recording"));
+    let complaint = stderr_of(&output);
+    assert!(complaint.contains("cannot be replayed"), "{complaint}");
+    assert!(
+        complaint.contains("line 1"),
+        "it names the line it could not read: {complaint}"
+    );
 
     let missing = Command::new(SOLAR)
         .arg("replay")
@@ -639,4 +652,106 @@ fn asking_for_a_level_nobody_can_read_is_refused_and_names_the_six() {
     for level in ["off", "error", "warn", "info", "debug", "trace"] {
         assert!(expected.contains(level), "{level} is not in {expected:?}");
     }
+}
+
+#[test]
+fn a_recording_of_a_format_this_build_does_not_know_is_refused() {
+    // The third thing ZENITH asked for: a documented format, so that something other than
+    // SOLAR can write a recording. Refusing a version this build cannot read is what makes
+    // the document worth following rather than optional.
+    let directory = std::env::temp_dir().join(format!("solar-format-{}", std::process::id()));
+    std::fs::create_dir_all(&directory).expect("a directory for the recording");
+    let path = directory.join("from-the-future.ndjson");
+    std::fs::write(
+        &path,
+        concat!(
+            r#"{"solar_recording":"9.0.0","at":"2026-09-27T21:05:49.374016Z","solar_version":"9.9.9","protocol":"solar/9"}"#,
+            "
+",
+            r#"{"at":"2026-09-27T21:05:49.374181Z","direction":"in","line":"{}"}"#,
+            "
+",
+        ),
+    )
+    .expect("the recording must be written");
+
+    let output = Command::new(SOLAR)
+        .arg("replay")
+        .arg(&path)
+        .output()
+        .expect("the binary must run");
+
+    assert_eq!(output.status.code(), Some(2), "INVALID_ARGUMENT exits 2");
+    let complaint = stderr_of(&output);
+    assert!(complaint.contains("9.0.0"), "{complaint}");
+    assert!(complaint.contains("docs/RECORDING.md"), "{complaint}");
+    assert!(
+        stdout_of(&output).is_empty(),
+        "nothing was replayed: {}",
+        stdout_of(&output)
+    );
+
+    let _ = std::fs::remove_dir_all(&directory);
+}
+
+#[test]
+fn a_recording_written_by_something_else_replays() {
+    // Written by hand, in the shape docs/RECORDING.md specifies, which is what ZENITH
+    // exporting a session would produce.
+    let directory = std::env::temp_dir().join(format!("solar-foreign-{}", std::process::id()));
+    std::fs::create_dir_all(&directory).expect("a directory for the recording");
+    let path = directory.join("from-zenith.ndjson");
+
+    let ping = r#"{"jsonrpc":"2.0","id":1,"method":"solar.ping","params":{"message":"hi"}}"#;
+    let answered = {
+        let output = serve(&format!(
+            "{ping}
+"
+        ));
+        stdout_of(&output).trim().to_owned()
+    };
+
+    let mut file = String::new();
+    file.push_str(r#"{"solar_recording":"1.0.0","at":"2026-09-27T21:05:49.374016Z","solar_version":"zenith 0.1.0","protocol":"solar/1"}"#);
+    file.push('\n');
+    file.push_str(
+        &serde_json::to_string(&serde_json::json!({
+            "at": "2026-09-27T21:05:49.374181Z",
+            "direction": "in",
+            "line": ping,
+        }))
+        .expect("an entry is JSON"),
+    );
+    file.push('\n');
+    file.push_str(
+        &serde_json::to_string(&serde_json::json!({
+            "at": "2026-09-27T21:05:49.374431Z",
+            "direction": "out",
+            "line": answered,
+        }))
+        .expect("an entry is JSON"),
+    );
+    file.push('\n');
+    std::fs::write(&path, file).expect("the recording must be written");
+
+    let output = Command::new(SOLAR)
+        .arg("replay")
+        .arg(&path)
+        .output()
+        .expect("the binary must run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout: {}, stderr: {}",
+        stdout_of(&output),
+        stderr_of(&output)
+    );
+    assert!(
+        stdout_of(&output).contains("1 request sent, 0 answers differ"),
+        "{}",
+        stdout_of(&output)
+    );
+
+    let _ = std::fs::remove_dir_all(&directory);
 }

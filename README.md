@@ -163,7 +163,7 @@ shell, so what is on screen is always pastable.
 
 The exit code follows the status, so a script never has to read the JSON to know what
 happened: `0` for success, `2` for `INVALID_ARGUMENT`, `3` for `NOT_FOUND`, and the rest in
-section 12 of the contract.
+section 14 of the contract.
 
 ```bash
 solar describe solar.pign || echo "exit $?"
@@ -293,6 +293,7 @@ docs/CONTRACT.md                the contract, normative
 docs/ERRORS.md                  the error catalogue
 docs/ADDING_AN_API.md           the procedure for the next API
 docs/TESTING_BY_HAND.md         how to check it by hand, for somebody new to Rust
+docs/RECORDING.md               the format of a recorded session, with its schema
 docs/OPEN_QUESTIONS.md          what was decided without asking and is still open
 docs/adr/                       the decisions that are settled, one file each
 docs/STYLE.md                   how the prose, the comments and the errors are written
