@@ -1,6 +1,6 @@
 //! Comparing the response an example promises with the one that really came back.
 //!
-//! The two modes and the `$any` token are defined in section 8.1 of the contract. This is
+//! The two modes and the `$any` token are defined in section 8.2 of the contract. This is
 //! the only place that knows how to read them, and the contract tests are its only caller.
 
 use serde_json::Value;

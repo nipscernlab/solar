@@ -37,7 +37,7 @@ fn main() -> ExitCode {
 
     let outcome = match task {
         "manifest" => manifest(rest.contains(&"--check")),
-        "ci" => ci::run(&root()),
+        "ci" => ci::run(&root(), rest.contains(&"--fast")),
         "coverage" => coverage::run(&root(), rest.contains(&"--report")),
         "mutants" => mutants::run(&root(), &rest),
         "compat" => match rest.first() {
@@ -80,6 +80,8 @@ cargo xtask <task>
   manifest            regenerate manifest/solar.manifest.json from the registry
   manifest --check    report whether the versioned manifest is stale, write nothing
   ci                  everything CI runs, in the same order, with a summary
+  ci --fast           the same without the documentation runner and the coverage step,
+                      which are most of the wall clock; the full command gates a push
   compat [<base>]     what changed in the manifest against <base>, default main, and
                       whether the version of each API answers for it
   coverage [--report] how much of the shipped code the tests run, against the floor;

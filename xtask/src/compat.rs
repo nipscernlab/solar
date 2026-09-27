@@ -12,6 +12,14 @@
 //!
 //! What is compared is the manifest at `HEAD`, regenerated from the registry so that a
 //! stale file cannot hide a change, against the manifest as it was at `<base>`.
+//!
+//! # References are resolved first
+//!
+//! The manifest shares its definitions: a schema says `$ref: "#/$defs/Reason"` rather
+//! than repeating the enumeration. Comparing the text of two `$ref`s would miss a change
+//! *inside* a shared definition, and would call moving a definition into `$defs` a
+//! breaking change. Both manifests are therefore resolved before anything is compared,
+//! so that a change to one shared definition is reported for every API that uses it.
 
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -20,6 +28,7 @@ use std::process::Command;
 use serde_json::Value;
 
 /// One difference between two manifests.
+#[derive(Debug)]
 struct Change {
     /// The API it is about, or `the manifest` for a change to the document itself.
     api: String,
@@ -36,8 +45,8 @@ struct Change {
 /// Returns the breaking changes that came without a major version, the additive changes
 /// that came without a minor one, or why the comparison could not be made.
 pub(crate) fn run(root: &Path, base: &str) -> Result<(), String> {
-    let before = manifest_at(root, base)?;
-    let after = current_manifest(root)?;
+    let before = resolve_all(&manifest_at(root, base)?);
+    let after = resolve_all(&current_manifest(root)?);
 
     let old_apis = apis_by_name(&before);
     let new_apis = apis_by_name(&after);
@@ -338,6 +347,97 @@ fn current_manifest(_root: &Path) -> Result<Value, String> {
         .map_err(|failure| format!("the manifest could not be built: {failure}"))
 }
 
+/// How deep a chain of references is followed before it is called a cycle.
+///
+/// Nothing in the manifest is recursive today. The limit exists so that a manifest that
+/// one day is cannot hang the check.
+const DEEPEST_REFERENCE: usize = 32;
+
+/// A manifest with every `$ref` replaced by what it points at.
+///
+/// A reference that cannot be resolved is left exactly as it is, so that a manifest from
+/// an older layout, which had no shared `$defs`, still compares.
+fn resolve_all(manifest: &Value) -> Value {
+    let shared = manifest.get("$defs").cloned().unwrap_or(Value::Null);
+    let mut resolved = manifest.clone();
+    if let Some(apis) = resolved.get_mut("apis").and_then(Value::as_array_mut) {
+        for api in apis.iter_mut() {
+            for which in ["params_schema", "output_schema"] {
+                let Some(schema) = api.get_mut(which) else {
+                    continue;
+                };
+                // A manifest written before the definitions were shared keeps them inside
+                // each schema. Both scopes are resolved, so that the two layouts compare
+                // as what they are: the same schemas, written down differently.
+                let defs = merge(&shared, schema.get("$defs"));
+                let mut expanded = resolve(schema, &defs, 0);
+                if let Some(object) = expanded.as_object_mut() {
+                    object.remove("$defs");
+                    object.remove("$schema");
+                }
+                *schema = expanded;
+            }
+        }
+    }
+    // Once every use is expanded the definitions are noise, and leaving them in would
+    // report moving one into the shared block as a change of the document.
+    if let Some(object) = resolved.as_object_mut() {
+        object.remove("$defs");
+    }
+    resolved
+}
+
+/// The shared definitions with a schema's own laid over them.
+fn merge(shared: &Value, own: Option<&Value>) -> Value {
+    let mut all = shared.as_object().cloned().unwrap_or_default();
+    if let Some(Value::Object(local)) = own {
+        for (name, definition) in local {
+            all.insert(name.clone(), definition.clone());
+        }
+    }
+    Value::Object(all)
+}
+
+/// Replaces `$ref` with what it points at, recursively.
+fn resolve(node: &Value, defs: &Value, depth: usize) -> Value {
+    if depth > DEEPEST_REFERENCE {
+        return node.clone();
+    }
+    match node {
+        Value::Object(members) => {
+            if let Some(target) = members.get("$ref").and_then(Value::as_str)
+                && let Some(name) = target.strip_prefix("#/$defs/")
+                && let Some(definition) = defs.get(name)
+            {
+                let mut expanded = resolve(definition, defs, depth + 1);
+                // A sibling of `$ref`, such as a description, stays: 2020-12 keeps them,
+                // and dropping one would hide a change to it.
+                if let Some(object) = expanded.as_object_mut() {
+                    for (key, value) in members {
+                        if key != "$ref" {
+                            object.insert(key.clone(), resolve(value, defs, depth + 1));
+                        }
+                    }
+                }
+                return expanded;
+            }
+            Value::Object(
+                members
+                    .iter()
+                    .map(|(key, value)| (key.clone(), resolve(value, defs, depth + 1)))
+                    .collect(),
+            )
+        }
+        Value::Array(items) => Value::Array(
+            items
+                .iter()
+                .map(|item| resolve(item, defs, depth + 1))
+                .collect(),
+        ),
+        other => other.clone(),
+    }
+}
+
 /// The APIs of a manifest, by name.
 fn apis_by_name(manifest: &Value) -> BTreeMap<String, Value> {
     manifest
@@ -510,6 +610,126 @@ mod tests {
         );
         assert_eq!(changes.len(), 1);
         assert!(changes[0].breaking);
+    }
+
+    /// A manifest with one API whose output has a `thing` member of the given schema,
+    /// plus whatever shared definitions are passed.
+    fn manifest_with(defs: &Value, thing: &Value, apis: &[&str]) -> Value {
+        let entries: Vec<Value> = apis
+            .iter()
+            .map(|name| {
+                json!({
+                    "name": name,
+                    "version": "1.0.0",
+                    "output_schema": {
+                        "type": "object",
+                        "properties": {"thing": thing.clone()},
+                    },
+                    "params_schema": {"type": "object", "properties": {}},
+                })
+            })
+            .collect();
+        json!({"schema_version": "2.0.0", "$defs": defs.clone(), "apis": entries})
+    }
+
+    #[test]
+    fn moving_a_definition_into_the_shared_block_is_not_a_change_at_all() {
+        // Before: the definition sits inside the schema, which is how schemars writes it.
+        let before = json!({
+            "schema_version": "1.0.0",
+            "apis": [{
+                "name": "a.b",
+                "version": "1.0.0",
+                "params_schema": {"type": "object", "properties": {}},
+                "output_schema": {
+                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                    "type": "object",
+                    "properties": {"thing": {"$ref": "#/$defs/Thing"}},
+                    "$defs": {"Thing": {"type": "string", "enum": ["one", "two"]}},
+                },
+            }],
+        });
+        // After: the same definition, hoisted to the root of the document.
+        let after = manifest_with(
+            &json!({"Thing": {"type": "string", "enum": ["one", "two"]}}),
+            &json!({"$ref": "#/$defs/Thing"}),
+            &["a.b"],
+        );
+
+        let old_apis = apis_by_name(&resolve_all(&before));
+        let new_apis = apis_by_name(&resolve_all(&after));
+        let mut changes = Vec::new();
+        compare_api("a.b", &old_apis["a.b"], &new_apis["a.b"], &mut changes);
+
+        let described: Vec<&str> = changes.iter().map(|change| change.what.as_str()).collect();
+        assert!(
+            described.is_empty(),
+            "the schema did not change, only where it is written: {described:?}"
+        );
+    }
+
+    #[test]
+    fn a_change_inside_a_shared_definition_is_reported_for_every_api_that_uses_it() {
+        let used_by = ["a.b", "c.d", "e.f"];
+        let before = manifest_with(
+            &json!({"Thing": {"type": "string", "enum": ["one", "two"]}}),
+            &json!({"$ref": "#/$defs/Thing"}),
+            &used_by,
+        );
+        // One definition changes type. Every API that reaches it is affected, and the
+        // text of the `$ref` is the same in both, so only resolving finds this.
+        let after = manifest_with(
+            &json!({"Thing": {"type": "integer"}}),
+            &json!({"$ref": "#/$defs/Thing"}),
+            &used_by,
+        );
+
+        let old_apis = apis_by_name(&resolve_all(&before));
+        let new_apis = apis_by_name(&resolve_all(&after));
+        let mut changes = Vec::new();
+        for name in used_by {
+            compare_api(name, &old_apis[name], &new_apis[name], &mut changes);
+        }
+
+        assert_eq!(
+            changes.len(),
+            3,
+            "one report per API that uses it: {changes:?}"
+        );
+        for change in &changes {
+            assert!(change.breaking, "a type that changed breaks a caller");
+            assert!(change.what.contains("thing"), "{}", change.what);
+            assert!(used_by.contains(&change.api.as_str()));
+        }
+    }
+
+    #[test]
+    fn rewording_a_description_is_not_a_change() {
+        let before = manifest_with(
+            &json!({}),
+            &json!({"type": "string", "description": "the old words"}),
+            &["a.b"],
+        );
+        let after = manifest_with(
+            &json!({}),
+            &json!({"type": "string", "description": "entirely different words"}),
+            &["a.b"],
+        );
+        let old_apis = apis_by_name(&resolve_all(&before));
+        let new_apis = apis_by_name(&resolve_all(&after));
+        let mut changes = Vec::new();
+        compare_api("a.b", &old_apis["a.b"], &new_apis["a.b"], &mut changes);
+        assert!(changes.is_empty(), "prose is not a promise: {changes:?}");
+    }
+
+    #[test]
+    fn a_reference_that_points_nowhere_is_left_as_it_is() {
+        let manifest = manifest_with(&json!({}), &json!({"$ref": "#/$defs/Missing"}), &["a.b"]);
+        let resolved = resolve_all(&manifest);
+        assert_eq!(
+            resolved["apis"][0]["output_schema"]["properties"]["thing"]["$ref"], "#/$defs/Missing",
+            "an unresolvable reference is kept, so an older layout still compares"
+        );
     }
 
     #[test]

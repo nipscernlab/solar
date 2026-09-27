@@ -36,12 +36,18 @@ struct Outcome {
 
 /// Runs the whole pipeline.
 ///
+/// With `fast`, the two slowest steps are skipped: the documentation runner, which builds
+/// a release binary and starts a shell per block, and the coverage step, which runs the
+/// whole suite again under instrumentation. Together they are most of the wall clock. The
+/// summary says plainly that they were skipped, and the full command is still the gate
+/// before a push, because those two have caught real defects that nothing else did.
+///
 /// # Errors
 ///
 /// Returns a sentence naming the steps that failed, after every step has run.
-pub(crate) fn run(root: &Path) -> Result<(), String> {
+pub(crate) fn run(root: &Path, fast: bool) -> Result<(), String> {
     // The order is the order of .github/workflows/ci.yml, step for step.
-    let outcomes = vec![
+    let mut outcomes = vec![
         cargo(root, "formatting", &["fmt", "--all", "--", "--check"]),
         tool(
             root,
@@ -82,30 +88,37 @@ pub(crate) fn run(root: &Path) -> Result<(), String> {
         // What CI compares on a pull request; locally, against main, which is what a
         // pull request from this branch would be compared with.
         step("compatibility", || crate::compat::run(root, "main")),
-        // The blocks of the documentation call `cargo xtask`, which would relink the
-        // running binary, so they build where the other nested commands build.
-        step("documentation runs", || {
-            crate::doc_run::run(root, &nested_target(root))
-        }),
-        step("no local paths", || {
-            crate::leak_check::run(root, &nested_target(root))
-        }),
-        tool(
-            root,
-            "supply chain",
-            "cargo",
-            &["deny", "check"],
-            "cargo-deny",
-        ),
-        // Last, because it runs the whole suite again under instrumentation.
-        step("coverage", || crate::coverage::run(root, false)),
     ];
 
-    report(&outcomes)
+    if !fast {
+        // The blocks of the documentation call `cargo xtask`, which would relink the
+        // running binary, so they build where the other nested commands build.
+        outcomes.push(step("documentation runs", || {
+            crate::doc_run::run(root, &nested_target(root))
+        }));
+    }
+
+    outcomes.push(step("no local paths", || {
+        crate::leak_check::run(root, &nested_target(root))
+    }));
+    outcomes.push(tool(
+        root,
+        "supply chain",
+        "cargo",
+        &["deny", "check"],
+        "cargo-deny",
+    ));
+
+    if !fast {
+        // Last, because it runs the whole suite again under instrumentation.
+        outcomes.push(step("coverage", || crate::coverage::run(root, false)));
+    }
+
+    report(&outcomes, fast)
 }
 
 /// Prints the summary and turns it into the result of the task.
-fn report(outcomes: &[Outcome]) -> Result<(), String> {
+fn report(outcomes: &[Outcome], fast: bool) -> Result<(), String> {
     let total: f64 = outcomes.iter().map(|outcome| outcome.seconds).sum();
     println!();
     println!("  step                        result    seconds");
@@ -127,8 +140,19 @@ fn report(outcomes: &[Outcome]) -> Result<(), String> {
         .collect();
     println!();
 
+    if fast {
+        println!("ci: SKIPPED the documentation runner and the coverage step, because --fast.");
+        println!("ci: run `cargo xtask ci` without it before pushing; CI runs everything.");
+        println!();
+    }
+
     if failed.is_empty() {
-        println!("ci: every step passed in {total:.1} s");
+        let what = if fast {
+            "every step that ran passed"
+        } else {
+            "every step passed"
+        };
+        println!("ci: {what} in {total:.1} s");
         Ok(())
     } else {
         Err(format!(

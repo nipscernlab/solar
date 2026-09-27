@@ -4,7 +4,7 @@ expression: "screen(&[\"version\"])"
 ---
 solar          [version]
 protocol       solar/1
-manifest       1.0.0
+manifest       2.0.0
 commit         [build]
 dirty          [build]
 profile        [build]

@@ -24,7 +24,7 @@ pub struct SolarManifest;
 
 impl Api for SolarManifest {
     const NAME: &'static str = "solar.manifest";
-    const VERSION: &'static str = "1.0.0";
+    const VERSION: &'static str = "1.1.0";
     type Params = Params;
     type Output = Manifest;
 

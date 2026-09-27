@@ -147,6 +147,36 @@ fn the_one_command_runs_the_checks_in_the_order_the_workflow_does() {
 }
 
 #[test]
+fn the_fast_path_skips_exactly_two_steps_and_says_so() {
+    // `--fast` is a local convenience, not a second definition of the pipeline. It may
+    // skip only the two slowest steps, and the summary must say it did.
+    let command = read("xtask/src/ci.rs");
+    let skipped: Vec<&str> = ["documentation runs", "coverage"].to_vec();
+
+    for name in skipped {
+        assert!(
+            command.contains(&format!(r#""{name}""#)),
+            "{name} is not a step of `xtask ci` at all"
+        );
+    }
+    assert!(
+        command.contains("if !fast {"),
+        "`xtask ci` has no fast path, or it is spelt differently now"
+    );
+    assert!(
+        command.contains("SKIPPED the documentation runner and the coverage step"),
+        "the summary of a fast run must say what it skipped"
+    );
+
+    // And the workflow has no fast path at all: CI always runs everything.
+    let workflow = read(".github/workflows/ci.yml");
+    assert!(
+        !workflow.contains("--fast"),
+        "CI must never take the fast path"
+    );
+}
+
+#[test]
 fn every_cargo_command_of_the_workflow_is_locked() {
     let workflow = read(".github/workflows/ci.yml");
     for line in workflow.lines().map(str::trim) {

@@ -34,7 +34,7 @@ struct Case {
     request_line: Option<String>,
     /// The whole response envelope that must come back.
     response: Value,
-    /// `exact` or `subset`, the two modes of section 8.1 of the contract.
+    /// `exact` or `subset`, the two modes of section 8.2 of the contract.
     #[serde(rename = "match")]
     match_mode: String,
 }

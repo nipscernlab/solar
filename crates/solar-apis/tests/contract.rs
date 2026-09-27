@@ -204,6 +204,112 @@ fn schemas_are_2020_12() {
 }
 
 #[test]
+fn the_schemas_of_the_manifest_are_fragments_of_it() {
+    // Section 8.1: a schema in the manifest carries no dialect and no definitions of its
+    // own. Both live once, at the root of the document.
+    let manifest = manifest::build(registry());
+    assert_eq!(manifest.schema_dialect, manifest::SCHEMA_DIALECT);
+
+    for entry in &manifest.apis {
+        for (which, schema) in [
+            ("params", &entry.params_schema),
+            ("output", &entry.output_schema),
+        ] {
+            assert!(
+                schema.get("$schema").is_none(),
+                "{}: the {which} schema carries a dialect of its own",
+                entry.name
+            );
+            assert!(
+                schema.get("$defs").is_none(),
+                "{}: the {which} schema carries definitions of its own",
+                entry.name
+            );
+        }
+    }
+}
+
+#[test]
+fn every_reference_in_the_manifest_points_at_a_definition_that_exists() {
+    let manifest = manifest::build(registry());
+    let mut references = Vec::new();
+    for entry in &manifest.apis {
+        collect_references(&entry.params_schema, &mut references);
+        collect_references(&entry.output_schema, &mut references);
+    }
+    // A definition may be reached only through another definition, as MatchMode is
+    // reached through Example, so the shared block is walked as well.
+    for definition in manifest.defs.values() {
+        collect_references(definition, &mut references);
+    }
+    assert!(
+        !references.is_empty(),
+        "the manifest shares nothing, so nothing is proved"
+    );
+
+    for reference in &references {
+        let name = reference
+            .strip_prefix("#/$defs/")
+            .unwrap_or_else(|| panic!("{reference} is not a reference into the shared block"));
+        assert!(
+            manifest.defs.contains_key(name),
+            "{reference} points at a definition the manifest does not carry"
+        );
+    }
+
+    // And nothing is carried that nothing points at.
+    for name in manifest.defs.keys() {
+        assert!(
+            references
+                .iter()
+                .any(|reference| reference == &format!("#/$defs/{name}")),
+            "{name} is defined and never used"
+        );
+    }
+}
+
+/// Every `$ref` string in a value, however deep.
+fn collect_references(node: &Value, into: &mut Vec<String>) {
+    match node {
+        Value::Object(members) => {
+            if let Some(Value::String(target)) = members.get("$ref") {
+                into.push(target.clone());
+            }
+            for member in members.values() {
+                collect_references(member, into);
+            }
+        }
+        Value::Array(items) => items.iter().for_each(|item| collect_references(item, into)),
+        _ => {}
+    }
+}
+
+#[test]
+fn a_schema_put_back_together_compiles_and_resolves() {
+    let manifest = manifest::build(registry());
+    for entry in &manifest.apis {
+        for which in ["params_schema", "output_schema"] {
+            let standalone = manifest::standalone_schema(&manifest, &entry.name, which)
+                .unwrap_or_else(|| {
+                    panic!("{}: {which} could not be put back together", entry.name)
+                });
+
+            assert_eq!(standalone["$schema"], manifest::SCHEMA_DIALECT);
+            // A validator compiles it, which means every reference resolved.
+            jsonschema::validator_for(&standalone).unwrap_or_else(|failure| {
+                panic!(
+                    "{}: the standalone {which} does not compile: {failure}",
+                    entry.name
+                )
+            });
+        }
+    }
+
+    assert!(manifest::standalone_schema(&manifest, "no.such_api", "params_schema").is_none());
+    assert!(manifest::standalone_schema(&manifest, "solar.ping", "nonsense").is_none());
+}
+
+#[test]
 fn examples_validate_against_params_schema() {
     for entry in registry().entries() {
         let validator = jsonschema::validator_for(entry.params_schema())

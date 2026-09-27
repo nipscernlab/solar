@@ -14,7 +14,7 @@
     "id": 1,
     "result": {
       "data": {
-        "schema_version": "1.0.0",
+        "schema_version": "2.0.0",
         "protocol": "solar/1",
         "solar_version": "$any",
         "apis": [
@@ -33,7 +33,9 @@
             "output_schema": "$any",
             "examples": "$any"
           }
-        ]
+        ],
+        "schema_dialect": "https://json-schema.org/draft/2020-12/schema",
+        "$defs": "$any"
       },
       "meta": "$any",
       "warnings": []

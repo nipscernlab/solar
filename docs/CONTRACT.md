@@ -235,14 +235,32 @@ Every API publishes a specification, and the manifest is the sum of those specif
 | `stability`     | `experimental`, `stable` or `deprecated`.                                      |
 | `since`         | The SOLAR version in which the API first appeared, not the API's own version.  |
 | `timeout_ms`    | The wall clock budget for one call, strictly positive. Enforced by dispatch.   |
-| `params_schema` | JSON Schema 2020-12, generated from the Rust parameter type.                   |
-| `output_schema` | JSON Schema 2020-12, generated from the Rust output type.                      |
-| `examples`      | At least one. See section 8.1.                                                 |
+| `params_schema` | JSON Schema 2020-12, from the Rust parameter type. A fragment: see 8.1.        |
+| `output_schema` | JSON Schema 2020-12, from the Rust output type. A fragment: see 8.1.           |
+| `examples`      | At least one. See section 8.2.                                                 |
 
 While `solar_version` is below `1.0.0`, every API is `experimental`. Nothing in SOLAR is
 declared `stable` before the first stable release of SOLAR itself.
 
-### 8.1 Examples are tests
+### 8.1 The schemas share their definitions
+
+The manifest carries, at its root:
+
+- `schema_dialect`, the URI of the dialect every schema in the document is written in,
+  currently `https://json-schema.org/draft/2020-12/schema`;
+- `$defs`, the definitions the schemas share, by name.
+
+Every `params_schema` and `output_schema` is a **fragment** of that document, not a schema
+resource of its own. It carries no `$schema` and no `$defs`, and a `$ref` of the form
+`#/$defs/Name` means the entry called `Name` in the `$defs` at the root of the manifest.
+
+This is what keeps the document readable as APIs are added: the enumeration of reasons is
+written once rather than once per API that mentions it. A consumer that needs a schema on
+its own puts the dialect and the definitions back around the fragment, which is what
+`solar_core::manifest::standalone_schema` does and what the contract tests use to compile
+every schema with a validator.
+
+### 8.2 Examples are tests
 
 An example is `{name, description, params, response, match}`, where `params` is a request
 `params` object and `response` is the expected `result.data`. Examples are not decoration:
@@ -278,8 +296,10 @@ reproduce.
   a way that breaks a caller. Adding an API never changes it.
 - **API**: each API carries its own semantic version. A breaking change to its parameters or
   its output is a major bump of that API alone.
-- **Manifest**: `schema_version`, semantic, currently `1.0.0`. A consumer MUST reject a
-  manifest whose major differs from the one it was written against.
+- **Manifest**: `schema_version`, semantic, currently `2.0.0`. A consumer MUST reject a
+  manifest whose major differs from the one it was written against. It went to `2.0.0`
+  when the schemas stopped being self-contained and began sharing the `$defs` of section
+  8.1.
 - **SOLAR**: the version of the build, reported in `meta.solar_version`.
 
 ## 11. Conformance

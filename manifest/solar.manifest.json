@@ -1,4 +1,385 @@
 {
+  "$defs": {
+    "BuildInfo": {
+      "description": "How this binary was built.",
+      "properties": {
+        "git_commit": {
+          "description": "The full Git commit the sources were at, or `unknown`.",
+          "type": "string"
+        },
+        "git_commit_short": {
+          "description": "The first twelve characters of that commit, or `unknown`.",
+          "type": "string"
+        },
+        "git_dirty": {
+          "description": "Whether tracked files differed from that commit when the build ran: `true`, `false`\nor `unknown`.",
+          "type": "string"
+        },
+        "profile": {
+          "description": "The Cargo profile: `debug`, `release`, or another profile's name.",
+          "type": "string"
+        },
+        "rustc_version": {
+          "description": "The compiler that built it, as `rustc --version` reports it.",
+          "type": "string"
+        },
+        "target": {
+          "description": "The target triple this binary runs on.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "git_commit",
+        "git_commit_short",
+        "git_dirty",
+        "rustc_version",
+        "profile",
+        "target"
+      ],
+      "type": "object"
+    },
+    "ErrorSpec": {
+      "description": "One `{status, reason}` pair an API declares it may return.",
+      "properties": {
+        "reason": {
+          "$ref": "#/$defs/Reason",
+          "description": "Which failure exactly."
+        },
+        "status": {
+          "$ref": "#/$defs/Status",
+          "description": "The kind of failure."
+        }
+      },
+      "required": [
+        "status",
+        "reason"
+      ],
+      "type": "object"
+    },
+    "Example": {
+      "description": "A request and the response it produces, which the test suite replays.",
+      "properties": {
+        "description": {
+          "description": "One line saying what the example shows.",
+          "type": "string"
+        },
+        "match": {
+          "$ref": "#/$defs/MatchMode",
+          "description": "How `response` is compared with reality."
+        },
+        "name": {
+          "description": "A short lower case name, unique within the API.",
+          "type": "string"
+        },
+        "params": {
+          "description": "The `params` object of the request."
+        },
+        "response": {
+          "description": "The expected `result.data`, where [`ANY`] stands for any value."
+        }
+      },
+      "required": [
+        "name",
+        "description",
+        "params",
+        "response",
+        "match"
+      ],
+      "type": "object"
+    },
+    "ManifestEntry": {
+      "description": "One API as it appears in the manifest.",
+      "properties": {
+        "description": {
+          "description": "Prose: what it is for, what it guarantees, what it does not do.",
+          "type": "string"
+        },
+        "errors": {
+          "description": "Every failure this API can return on top of the ones dispatch itself produces.",
+          "items": {
+            "$ref": "#/$defs/ErrorSpec"
+          },
+          "type": "array"
+        },
+        "examples": {
+          "description": "At least one example, replayed by the test suite.",
+          "items": {
+            "$ref": "#/$defs/Example"
+          },
+          "type": "array"
+        },
+        "idempotent": {
+          "description": "Whether calling twice has the same effect as calling once.",
+          "type": "boolean"
+        },
+        "name": {
+          "description": "The method name.",
+          "type": "string"
+        },
+        "output_schema": {
+          "description": "JSON Schema 2020-12 of the output."
+        },
+        "params_schema": {
+          "description": "JSON Schema 2020-12 of the parameters."
+        },
+        "side_effects": {
+          "description": "What it touches outside its arguments.",
+          "items": {
+            "$ref": "#/$defs/SideEffect"
+          },
+          "type": "array"
+        },
+        "since": {
+          "description": "The SOLAR version this API first appeared in.",
+          "type": "string"
+        },
+        "stability": {
+          "$ref": "#/$defs/Stability",
+          "description": "How much a caller may rely on the shape."
+        },
+        "summary": {
+          "description": "One line, no full stop, what the API does.",
+          "type": "string"
+        },
+        "timeout_ms": {
+          "description": "The wall clock budget of one call, strictly positive, enforced by dispatch.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "version": {
+          "description": "The semantic version of this API.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version",
+        "summary",
+        "description",
+        "errors",
+        "side_effects",
+        "idempotent",
+        "stability",
+        "since",
+        "timeout_ms",
+        "examples",
+        "params_schema",
+        "output_schema"
+      ],
+      "type": "object"
+    },
+    "MatchMode": {
+      "description": "How the response of an example is compared with what really comes back.",
+      "oneOf": [
+        {
+          "const": "exact",
+          "description": "Deep equality, member for member.",
+          "type": "string"
+        },
+        {
+          "const": "subset",
+          "description": "Every member the example names must match; the rest is ignored.",
+          "type": "string"
+        }
+      ]
+    },
+    "Reason": {
+      "description": "Why a call failed, one constant per documented failure.",
+      "oneOf": [
+        {
+          "const": "PARSE_ERROR",
+          "description": "The line is not valid JSON, or not valid UTF-8.",
+          "type": "string"
+        },
+        {
+          "const": "MISSING_FIELD",
+          "description": "A member the contract requires is absent.",
+          "type": "string"
+        },
+        {
+          "const": "UNKNOWN_FIELD",
+          "description": "A member inside `params` that the API does not declare.",
+          "type": "string"
+        },
+        {
+          "const": "TYPE_MISMATCH",
+          "description": "The member is there and holds the wrong kind of value.",
+          "type": "string"
+        },
+        {
+          "const": "INVALID_VALUE",
+          "description": "The type is right and the value is not usable.",
+          "type": "string"
+        },
+        {
+          "const": "NOTIFICATION_NOT_SUPPORTED",
+          "description": "The message has no `id`, and SOLAR does not accept notifications.",
+          "type": "string"
+        },
+        {
+          "const": "METHOD_NOT_FOUND",
+          "description": "The `method` of the request is not registered.",
+          "type": "string"
+        },
+        {
+          "const": "API_NOT_FOUND",
+          "description": "An API was asked about by name and is not registered.",
+          "type": "string"
+        },
+        {
+          "const": "MESSAGE_TOO_LARGE",
+          "description": "A request line went past the 16 MiB limit.",
+          "type": "string"
+        },
+        {
+          "const": "HANDLER_TIMEOUT",
+          "description": "The API did not finish within the `timeout_ms` it declares.",
+          "type": "string"
+        },
+        {
+          "const": "THREAD_SPAWN_FAILED",
+          "description": "SOLAR could not start the worker thread a call runs on.",
+          "type": "string"
+        },
+        {
+          "const": "ENVIRONMENT_UNAVAILABLE",
+          "description": "SOLAR could not read something about its own process that it needs.",
+          "type": "string"
+        },
+        {
+          "const": "BATCH_NOT_SUPPORTED",
+          "description": "The message is a JSON array, and `solar/1` does not implement batches.",
+          "type": "string"
+        },
+        {
+          "const": "HANDLER_PANIC",
+          "description": "An API panicked, and dispatch caught the unwind.",
+          "type": "string"
+        },
+        {
+          "const": "SERIALIZATION_FAILED",
+          "description": "The API produced a value that could not be turned into JSON.",
+          "type": "string"
+        },
+        {
+          "const": "INVARIANT_BROKEN",
+          "description": "SOLAR checked something that cannot be false, and it was false.",
+          "type": "string"
+        }
+      ]
+    },
+    "SideEffect": {
+      "description": "What an API touches outside of its own arguments.\n\n`None` is exclusive: an API that declares it must declare nothing else, and the registry\nrefuses a specification that claims both.",
+      "oneOf": [
+        {
+          "const": "none",
+          "description": "Reads nothing, writes nothing, starts nothing. A pure function of its parameters\nand of the state SOLAR already holds in memory.",
+          "type": "string"
+        },
+        {
+          "const": "reads_filesystem",
+          "description": "Reads from the file system.",
+          "type": "string"
+        },
+        {
+          "const": "writes_filesystem",
+          "description": "Writes to the file system.",
+          "type": "string"
+        },
+        {
+          "const": "spawns_process",
+          "description": "Starts an external process.",
+          "type": "string"
+        },
+        {
+          "const": "network",
+          "description": "Talks to the network.",
+          "type": "string"
+        }
+      ]
+    },
+    "Stability": {
+      "description": "How much a caller may rely on an API staying as it is.",
+      "oneOf": [
+        {
+          "const": "experimental",
+          "description": "The shape may still change. Everything is experimental while SOLAR is below 1.0.0.",
+          "type": "string"
+        },
+        {
+          "const": "stable",
+          "description": "The shape only changes with a major version of the API.",
+          "type": "string"
+        },
+        {
+          "const": "deprecated",
+          "description": "Still answers, and will be removed. The description says what to use instead.",
+          "type": "string"
+        }
+      ]
+    },
+    "Status": {
+      "description": "The kind of a failure, in the vocabulary shared with Google and gRPC.\n\nThe JSON-RPC integer code of a response is a function of this value, given by\n[`Status::code`]. The only exceptions are the two envelope level codes, `-32700` and\n`-32600`, which are described in section 6.1 of the contract.",
+      "oneOf": [
+        {
+          "const": "INVALID_ARGUMENT",
+          "description": "The caller sent something SOLAR cannot accept.",
+          "type": "string"
+        },
+        {
+          "const": "NOT_FOUND",
+          "description": "A named thing does not exist: a method, an API, a file.",
+          "type": "string"
+        },
+        {
+          "const": "ALREADY_EXISTS",
+          "description": "Creating something that is already there.",
+          "type": "string"
+        },
+        {
+          "const": "FAILED_PRECONDITION",
+          "description": "The system is not in a state where the call can run.",
+          "type": "string"
+        },
+        {
+          "const": "PERMISSION_DENIED",
+          "description": "The operating system refused access.",
+          "type": "string"
+        },
+        {
+          "const": "RESOURCE_EXHAUSTED",
+          "description": "A declared limit was reached.",
+          "type": "string"
+        },
+        {
+          "const": "DEADLINE_EXCEEDED",
+          "description": "The call ran past its timeout.",
+          "type": "string"
+        },
+        {
+          "const": "UNAVAILABLE",
+          "description": "A dependency SOLAR needs is not available right now.",
+          "type": "string"
+        },
+        {
+          "const": "UNIMPLEMENTED",
+          "description": "Valid, understood, not built yet.",
+          "type": "string"
+        },
+        {
+          "const": "INTERNAL",
+          "description": "A bug in SOLAR. A panic reaches the caller as this.",
+          "type": "string"
+        },
+        {
+          "const": "UNKNOWN",
+          "description": "A failure that could not be classified.",
+          "type": "string"
+        }
+      ]
+    }
+  },
   "apis": [
     {
       "description": "The entry of a single API, exactly as it appears in the manifest: the summary and the description, the failures it declares, what it touches, whether it is idempotent, its timeout, the JSON Schemas of its parameters and of its output, and examples that really run.\n\nThis is the call to make before making any other call. An agent that reads the entry first does not have to guess a parameter name, and a name that does not exist comes back with the closest ones that do.",
@@ -29,268 +410,6 @@
       "idempotent": true,
       "name": "solar.describe",
       "output_schema": {
-        "$defs": {
-          "ErrorSpec": {
-            "description": "One `{status, reason}` pair an API declares it may return.",
-            "properties": {
-              "reason": {
-                "$ref": "#/$defs/Reason",
-                "description": "Which failure exactly."
-              },
-              "status": {
-                "$ref": "#/$defs/Status",
-                "description": "The kind of failure."
-              }
-            },
-            "required": [
-              "status",
-              "reason"
-            ],
-            "type": "object"
-          },
-          "Example": {
-            "description": "A request and the response it produces, which the test suite replays.",
-            "properties": {
-              "description": {
-                "description": "One line saying what the example shows.",
-                "type": "string"
-              },
-              "match": {
-                "$ref": "#/$defs/MatchMode",
-                "description": "How `response` is compared with reality."
-              },
-              "name": {
-                "description": "A short lower case name, unique within the API.",
-                "type": "string"
-              },
-              "params": {
-                "description": "The `params` object of the request."
-              },
-              "response": {
-                "description": "The expected `result.data`, where [`ANY`] stands for any value."
-              }
-            },
-            "required": [
-              "name",
-              "description",
-              "params",
-              "response",
-              "match"
-            ],
-            "type": "object"
-          },
-          "MatchMode": {
-            "description": "How the response of an example is compared with what really comes back.",
-            "oneOf": [
-              {
-                "const": "exact",
-                "description": "Deep equality, member for member.",
-                "type": "string"
-              },
-              {
-                "const": "subset",
-                "description": "Every member the example names must match; the rest is ignored.",
-                "type": "string"
-              }
-            ]
-          },
-          "Reason": {
-            "description": "Why a call failed, one constant per documented failure.",
-            "oneOf": [
-              {
-                "const": "PARSE_ERROR",
-                "description": "The line is not valid JSON, or not valid UTF-8.",
-                "type": "string"
-              },
-              {
-                "const": "MISSING_FIELD",
-                "description": "A member the contract requires is absent.",
-                "type": "string"
-              },
-              {
-                "const": "UNKNOWN_FIELD",
-                "description": "A member inside `params` that the API does not declare.",
-                "type": "string"
-              },
-              {
-                "const": "TYPE_MISMATCH",
-                "description": "The member is there and holds the wrong kind of value.",
-                "type": "string"
-              },
-              {
-                "const": "INVALID_VALUE",
-                "description": "The type is right and the value is not usable.",
-                "type": "string"
-              },
-              {
-                "const": "NOTIFICATION_NOT_SUPPORTED",
-                "description": "The message has no `id`, and SOLAR does not accept notifications.",
-                "type": "string"
-              },
-              {
-                "const": "METHOD_NOT_FOUND",
-                "description": "The `method` of the request is not registered.",
-                "type": "string"
-              },
-              {
-                "const": "API_NOT_FOUND",
-                "description": "An API was asked about by name and is not registered.",
-                "type": "string"
-              },
-              {
-                "const": "MESSAGE_TOO_LARGE",
-                "description": "A request line went past the 16 MiB limit.",
-                "type": "string"
-              },
-              {
-                "const": "HANDLER_TIMEOUT",
-                "description": "The API did not finish within the `timeout_ms` it declares.",
-                "type": "string"
-              },
-              {
-                "const": "THREAD_SPAWN_FAILED",
-                "description": "SOLAR could not start the worker thread a call runs on.",
-                "type": "string"
-              },
-              {
-                "const": "ENVIRONMENT_UNAVAILABLE",
-                "description": "SOLAR could not read something about its own process that it needs.",
-                "type": "string"
-              },
-              {
-                "const": "BATCH_NOT_SUPPORTED",
-                "description": "The message is a JSON array, and `solar/1` does not implement batches.",
-                "type": "string"
-              },
-              {
-                "const": "HANDLER_PANIC",
-                "description": "An API panicked, and dispatch caught the unwind.",
-                "type": "string"
-              },
-              {
-                "const": "SERIALIZATION_FAILED",
-                "description": "The API produced a value that could not be turned into JSON.",
-                "type": "string"
-              },
-              {
-                "const": "INVARIANT_BROKEN",
-                "description": "SOLAR checked something that cannot be false, and it was false.",
-                "type": "string"
-              }
-            ]
-          },
-          "SideEffect": {
-            "description": "What an API touches outside of its own arguments.\n\n`None` is exclusive: an API that declares it must declare nothing else, and the registry\nrefuses a specification that claims both.",
-            "oneOf": [
-              {
-                "const": "none",
-                "description": "Reads nothing, writes nothing, starts nothing. A pure function of its parameters\nand of the state SOLAR already holds in memory.",
-                "type": "string"
-              },
-              {
-                "const": "reads_filesystem",
-                "description": "Reads from the file system.",
-                "type": "string"
-              },
-              {
-                "const": "writes_filesystem",
-                "description": "Writes to the file system.",
-                "type": "string"
-              },
-              {
-                "const": "spawns_process",
-                "description": "Starts an external process.",
-                "type": "string"
-              },
-              {
-                "const": "network",
-                "description": "Talks to the network.",
-                "type": "string"
-              }
-            ]
-          },
-          "Stability": {
-            "description": "How much a caller may rely on an API staying as it is.",
-            "oneOf": [
-              {
-                "const": "experimental",
-                "description": "The shape may still change. Everything is experimental while SOLAR is below 1.0.0.",
-                "type": "string"
-              },
-              {
-                "const": "stable",
-                "description": "The shape only changes with a major version of the API.",
-                "type": "string"
-              },
-              {
-                "const": "deprecated",
-                "description": "Still answers, and will be removed. The description says what to use instead.",
-                "type": "string"
-              }
-            ]
-          },
-          "Status": {
-            "description": "The kind of a failure, in the vocabulary shared with Google and gRPC.\n\nThe JSON-RPC integer code of a response is a function of this value, given by\n[`Status::code`]. The only exceptions are the two envelope level codes, `-32700` and\n`-32600`, which are described in section 6.1 of the contract.",
-            "oneOf": [
-              {
-                "const": "INVALID_ARGUMENT",
-                "description": "The caller sent something SOLAR cannot accept.",
-                "type": "string"
-              },
-              {
-                "const": "NOT_FOUND",
-                "description": "A named thing does not exist: a method, an API, a file.",
-                "type": "string"
-              },
-              {
-                "const": "ALREADY_EXISTS",
-                "description": "Creating something that is already there.",
-                "type": "string"
-              },
-              {
-                "const": "FAILED_PRECONDITION",
-                "description": "The system is not in a state where the call can run.",
-                "type": "string"
-              },
-              {
-                "const": "PERMISSION_DENIED",
-                "description": "The operating system refused access.",
-                "type": "string"
-              },
-              {
-                "const": "RESOURCE_EXHAUSTED",
-                "description": "A declared limit was reached.",
-                "type": "string"
-              },
-              {
-                "const": "DEADLINE_EXCEEDED",
-                "description": "The call ran past its timeout.",
-                "type": "string"
-              },
-              {
-                "const": "UNAVAILABLE",
-                "description": "A dependency SOLAR needs is not available right now.",
-                "type": "string"
-              },
-              {
-                "const": "UNIMPLEMENTED",
-                "description": "Valid, understood, not built yet.",
-                "type": "string"
-              },
-              {
-                "const": "INTERNAL",
-                "description": "A bug in SOLAR. A panic reaches the caller as this.",
-                "type": "string"
-              },
-              {
-                "const": "UNKNOWN",
-                "description": "A failure that could not be classified.",
-                "type": "string"
-              }
-            ]
-          }
-        },
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
         "description": "One API as it appears in the manifest.",
         "properties": {
           "description": {
@@ -374,7 +493,6 @@
         "type": "object"
       },
       "params_schema": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "description": "The parameters of `solar.describe`.",
         "properties": {
@@ -415,7 +533,7 @@
           "response": {
             "apis": "$any",
             "protocol": "solar/1",
-            "schema_version": "1.0.0",
+            "schema_version": "2.0.0",
             "solar_version": "$any"
           }
         },
@@ -439,352 +557,13 @@
       "idempotent": true,
       "name": "solar.manifest",
       "output_schema": {
-        "$defs": {
-          "ErrorSpec": {
-            "description": "One `{status, reason}` pair an API declares it may return.",
-            "properties": {
-              "reason": {
-                "$ref": "#/$defs/Reason",
-                "description": "Which failure exactly."
-              },
-              "status": {
-                "$ref": "#/$defs/Status",
-                "description": "The kind of failure."
-              }
-            },
-            "required": [
-              "status",
-              "reason"
-            ],
-            "type": "object"
-          },
-          "Example": {
-            "description": "A request and the response it produces, which the test suite replays.",
-            "properties": {
-              "description": {
-                "description": "One line saying what the example shows.",
-                "type": "string"
-              },
-              "match": {
-                "$ref": "#/$defs/MatchMode",
-                "description": "How `response` is compared with reality."
-              },
-              "name": {
-                "description": "A short lower case name, unique within the API.",
-                "type": "string"
-              },
-              "params": {
-                "description": "The `params` object of the request."
-              },
-              "response": {
-                "description": "The expected `result.data`, where [`ANY`] stands for any value."
-              }
-            },
-            "required": [
-              "name",
-              "description",
-              "params",
-              "response",
-              "match"
-            ],
-            "type": "object"
-          },
-          "ManifestEntry": {
-            "description": "One API as it appears in the manifest.",
-            "properties": {
-              "description": {
-                "description": "Prose: what it is for, what it guarantees, what it does not do.",
-                "type": "string"
-              },
-              "errors": {
-                "description": "Every failure this API can return on top of the ones dispatch itself produces.",
-                "items": {
-                  "$ref": "#/$defs/ErrorSpec"
-                },
-                "type": "array"
-              },
-              "examples": {
-                "description": "At least one example, replayed by the test suite.",
-                "items": {
-                  "$ref": "#/$defs/Example"
-                },
-                "type": "array"
-              },
-              "idempotent": {
-                "description": "Whether calling twice has the same effect as calling once.",
-                "type": "boolean"
-              },
-              "name": {
-                "description": "The method name.",
-                "type": "string"
-              },
-              "output_schema": {
-                "description": "JSON Schema 2020-12 of the output."
-              },
-              "params_schema": {
-                "description": "JSON Schema 2020-12 of the parameters."
-              },
-              "side_effects": {
-                "description": "What it touches outside its arguments.",
-                "items": {
-                  "$ref": "#/$defs/SideEffect"
-                },
-                "type": "array"
-              },
-              "since": {
-                "description": "The SOLAR version this API first appeared in.",
-                "type": "string"
-              },
-              "stability": {
-                "$ref": "#/$defs/Stability",
-                "description": "How much a caller may rely on the shape."
-              },
-              "summary": {
-                "description": "One line, no full stop, what the API does.",
-                "type": "string"
-              },
-              "timeout_ms": {
-                "description": "The wall clock budget of one call, strictly positive, enforced by dispatch.",
-                "format": "uint64",
-                "minimum": 0,
-                "type": "integer"
-              },
-              "version": {
-                "description": "The semantic version of this API.",
-                "type": "string"
-              }
-            },
-            "required": [
-              "name",
-              "version",
-              "summary",
-              "description",
-              "errors",
-              "side_effects",
-              "idempotent",
-              "stability",
-              "since",
-              "timeout_ms",
-              "examples",
-              "params_schema",
-              "output_schema"
-            ],
-            "type": "object"
-          },
-          "MatchMode": {
-            "description": "How the response of an example is compared with what really comes back.",
-            "oneOf": [
-              {
-                "const": "exact",
-                "description": "Deep equality, member for member.",
-                "type": "string"
-              },
-              {
-                "const": "subset",
-                "description": "Every member the example names must match; the rest is ignored.",
-                "type": "string"
-              }
-            ]
-          },
-          "Reason": {
-            "description": "Why a call failed, one constant per documented failure.",
-            "oneOf": [
-              {
-                "const": "PARSE_ERROR",
-                "description": "The line is not valid JSON, or not valid UTF-8.",
-                "type": "string"
-              },
-              {
-                "const": "MISSING_FIELD",
-                "description": "A member the contract requires is absent.",
-                "type": "string"
-              },
-              {
-                "const": "UNKNOWN_FIELD",
-                "description": "A member inside `params` that the API does not declare.",
-                "type": "string"
-              },
-              {
-                "const": "TYPE_MISMATCH",
-                "description": "The member is there and holds the wrong kind of value.",
-                "type": "string"
-              },
-              {
-                "const": "INVALID_VALUE",
-                "description": "The type is right and the value is not usable.",
-                "type": "string"
-              },
-              {
-                "const": "NOTIFICATION_NOT_SUPPORTED",
-                "description": "The message has no `id`, and SOLAR does not accept notifications.",
-                "type": "string"
-              },
-              {
-                "const": "METHOD_NOT_FOUND",
-                "description": "The `method` of the request is not registered.",
-                "type": "string"
-              },
-              {
-                "const": "API_NOT_FOUND",
-                "description": "An API was asked about by name and is not registered.",
-                "type": "string"
-              },
-              {
-                "const": "MESSAGE_TOO_LARGE",
-                "description": "A request line went past the 16 MiB limit.",
-                "type": "string"
-              },
-              {
-                "const": "HANDLER_TIMEOUT",
-                "description": "The API did not finish within the `timeout_ms` it declares.",
-                "type": "string"
-              },
-              {
-                "const": "THREAD_SPAWN_FAILED",
-                "description": "SOLAR could not start the worker thread a call runs on.",
-                "type": "string"
-              },
-              {
-                "const": "ENVIRONMENT_UNAVAILABLE",
-                "description": "SOLAR could not read something about its own process that it needs.",
-                "type": "string"
-              },
-              {
-                "const": "BATCH_NOT_SUPPORTED",
-                "description": "The message is a JSON array, and `solar/1` does not implement batches.",
-                "type": "string"
-              },
-              {
-                "const": "HANDLER_PANIC",
-                "description": "An API panicked, and dispatch caught the unwind.",
-                "type": "string"
-              },
-              {
-                "const": "SERIALIZATION_FAILED",
-                "description": "The API produced a value that could not be turned into JSON.",
-                "type": "string"
-              },
-              {
-                "const": "INVARIANT_BROKEN",
-                "description": "SOLAR checked something that cannot be false, and it was false.",
-                "type": "string"
-              }
-            ]
-          },
-          "SideEffect": {
-            "description": "What an API touches outside of its own arguments.\n\n`None` is exclusive: an API that declares it must declare nothing else, and the registry\nrefuses a specification that claims both.",
-            "oneOf": [
-              {
-                "const": "none",
-                "description": "Reads nothing, writes nothing, starts nothing. A pure function of its parameters\nand of the state SOLAR already holds in memory.",
-                "type": "string"
-              },
-              {
-                "const": "reads_filesystem",
-                "description": "Reads from the file system.",
-                "type": "string"
-              },
-              {
-                "const": "writes_filesystem",
-                "description": "Writes to the file system.",
-                "type": "string"
-              },
-              {
-                "const": "spawns_process",
-                "description": "Starts an external process.",
-                "type": "string"
-              },
-              {
-                "const": "network",
-                "description": "Talks to the network.",
-                "type": "string"
-              }
-            ]
-          },
-          "Stability": {
-            "description": "How much a caller may rely on an API staying as it is.",
-            "oneOf": [
-              {
-                "const": "experimental",
-                "description": "The shape may still change. Everything is experimental while SOLAR is below 1.0.0.",
-                "type": "string"
-              },
-              {
-                "const": "stable",
-                "description": "The shape only changes with a major version of the API.",
-                "type": "string"
-              },
-              {
-                "const": "deprecated",
-                "description": "Still answers, and will be removed. The description says what to use instead.",
-                "type": "string"
-              }
-            ]
-          },
-          "Status": {
-            "description": "The kind of a failure, in the vocabulary shared with Google and gRPC.\n\nThe JSON-RPC integer code of a response is a function of this value, given by\n[`Status::code`]. The only exceptions are the two envelope level codes, `-32700` and\n`-32600`, which are described in section 6.1 of the contract.",
-            "oneOf": [
-              {
-                "const": "INVALID_ARGUMENT",
-                "description": "The caller sent something SOLAR cannot accept.",
-                "type": "string"
-              },
-              {
-                "const": "NOT_FOUND",
-                "description": "A named thing does not exist: a method, an API, a file.",
-                "type": "string"
-              },
-              {
-                "const": "ALREADY_EXISTS",
-                "description": "Creating something that is already there.",
-                "type": "string"
-              },
-              {
-                "const": "FAILED_PRECONDITION",
-                "description": "The system is not in a state where the call can run.",
-                "type": "string"
-              },
-              {
-                "const": "PERMISSION_DENIED",
-                "description": "The operating system refused access.",
-                "type": "string"
-              },
-              {
-                "const": "RESOURCE_EXHAUSTED",
-                "description": "A declared limit was reached.",
-                "type": "string"
-              },
-              {
-                "const": "DEADLINE_EXCEEDED",
-                "description": "The call ran past its timeout.",
-                "type": "string"
-              },
-              {
-                "const": "UNAVAILABLE",
-                "description": "A dependency SOLAR needs is not available right now.",
-                "type": "string"
-              },
-              {
-                "const": "UNIMPLEMENTED",
-                "description": "Valid, understood, not built yet.",
-                "type": "string"
-              },
-              {
-                "const": "INTERNAL",
-                "description": "A bug in SOLAR. A panic reaches the caller as this.",
-                "type": "string"
-              },
-              {
-                "const": "UNKNOWN",
-                "description": "A failure that could not be classified.",
-                "type": "string"
-              }
-            ]
-          }
-        },
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
         "description": "Every API this build answers to, with its schemas and its examples.",
         "properties": {
+          "$defs": {
+            "additionalProperties": true,
+            "description": "The definitions the schemas share, by name. A `$ref` of `#/$defs/Name` in any\nschema of this document means the entry called `Name` here.",
+            "type": "object"
+          },
           "apis": {
             "description": "The APIs, sorted by name.",
             "items": {
@@ -794,6 +573,10 @@
           },
           "protocol": {
             "description": "The protocol these APIs speak.",
+            "type": "string"
+          },
+          "schema_dialect": {
+            "description": "The dialect every schema below is written in.",
             "type": "string"
           },
           "schema_version": {
@@ -809,13 +592,14 @@
           "schema_version",
           "protocol",
           "solar_version",
+          "schema_dialect",
+          "$defs",
           "apis"
         ],
         "title": "Manifest",
         "type": "object"
       },
       "params_schema": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "description": "The parameters of `solar.manifest`.",
         "properties": {
@@ -838,7 +622,7 @@
       "stability": "experimental",
       "summary": "Returns the manifest of every API this build answers to",
       "timeout_ms": 2000,
-      "version": "1.0.0"
+      "version": "1.1.0"
     },
     {
       "description": "The cheapest call SOLAR has. It touches nothing, reads nothing and starts nothing, so the time it takes is the time the protocol itself costs: the round trip of a line through a pipe plus dispatch. That makes it the call to measure with, and the call to reach for when something is not answering and the question is whether SOLAR is alive at all.\n\nWhatever is passed in `message` comes back in `echo`, untouched, which is how a caller tells one ping from another when several are in flight.",
@@ -872,7 +656,6 @@
       "idempotent": true,
       "name": "solar.ping",
       "output_schema": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
         "description": "The output of `solar.ping`.",
         "properties": {
           "echo": {
@@ -899,7 +682,6 @@
         "type": "object"
       },
       "params_schema": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "description": "The parameters of `solar.ping`.",
         "properties": {
@@ -939,7 +721,7 @@
               "rustc_version": "$any",
               "target": "$any"
             },
-            "manifest_schema_version": "1.0.0",
+            "manifest_schema_version": "2.0.0",
             "protocol": "solar/1",
             "solar_version": "$any"
           }
@@ -948,47 +730,6 @@
       "idempotent": true,
       "name": "solar.version",
       "output_schema": {
-        "$defs": {
-          "BuildInfo": {
-            "description": "How this binary was built.",
-            "properties": {
-              "git_commit": {
-                "description": "The full Git commit the sources were at, or `unknown`.",
-                "type": "string"
-              },
-              "git_commit_short": {
-                "description": "The first twelve characters of that commit, or `unknown`.",
-                "type": "string"
-              },
-              "git_dirty": {
-                "description": "Whether tracked files differed from that commit when the build ran: `true`, `false`\nor `unknown`.",
-                "type": "string"
-              },
-              "profile": {
-                "description": "The Cargo profile: `debug`, `release`, or another profile's name.",
-                "type": "string"
-              },
-              "rustc_version": {
-                "description": "The compiler that built it, as `rustc --version` reports it.",
-                "type": "string"
-              },
-              "target": {
-                "description": "The target triple this binary runs on.",
-                "type": "string"
-              }
-            },
-            "required": [
-              "git_commit",
-              "git_commit_short",
-              "git_dirty",
-              "rustc_version",
-              "profile",
-              "target"
-            ],
-            "type": "object"
-          }
-        },
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
         "description": "The output of `solar.version`.",
         "properties": {
           "build": {
@@ -1018,7 +759,6 @@
         "type": "object"
       },
       "params_schema": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "description": "The parameters of `solar.version`, of which there are none.",
         "title": "Params",
@@ -1067,7 +807,6 @@
       "idempotent": true,
       "name": "system.info",
       "output_schema": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
         "description": "The output of `system.info`.",
         "properties": {
           "arch": {
@@ -1154,7 +893,6 @@
         "type": "object"
       },
       "params_schema": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "description": "The parameters of `system.info`, of which there are none.",
         "title": "Params",
@@ -1171,6 +909,7 @@
     }
   ],
   "protocol": "solar/1",
-  "schema_version": "1.0.0",
+  "schema_dialect": "https://json-schema.org/draft/2020-12/schema",
+  "schema_version": "2.0.0",
   "solar_version": "0.1.0"
 }
