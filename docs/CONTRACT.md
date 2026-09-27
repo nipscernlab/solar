@@ -268,7 +268,7 @@ Every API publishes a specification, and the manifest is the sum of those specif
 | `stability`     | `experimental`, `stable` or `deprecated`.                                      |
 | `since`         | The SOLAR version in which the API first appeared, not the API's own version.  |
 | `timeout_ms`    | The wall clock budget for one call, strictly positive. Enforced by dispatch.   |
-| `max_output_bytes` | The largest response this API may produce, in bytes of serialised JSON. Enforced by dispatch. See 8.3. |
+| `max_output_bytes` | The largest response this API may produce, in bytes of serialised JSON. Enforced by dispatch. See 8.4. |
 | `params_schema` | JSON Schema 2020-12, from the Rust parameter type. A fragment: see 8.1.        |
 | `output_schema` | JSON Schema 2020-12, from the Rust output type. A fragment: see 8.1.           |
 | `examples`      | At least one. See section 8.2.                                                 |
@@ -294,7 +294,52 @@ its own puts the dialect and the definitions back around the fragment, which is 
 `solar_core::manifest::standalone_schema` does and what the contract tests use to compile
 every schema with a validator.
 
-### 8.2 Examples are tests
+### 8.2 The manifest says what the protocol accepts
+
+The APIs are not the whole of what a client has to know. SOLAR 0.1.0 and 0.2.0 both answer
+under the protocol name `solar/1` and differ in whether a batch is accepted, so a client
+that reads only the protocol name cannot tell them apart.
+
+The manifest therefore carries **`capabilities`** at its root, and everything in it is the
+value the code enforces rather than a copy of it:
+
+```json
+{
+  "capabilities": {
+    "batch": {"accepted": true, "max_elements": 64, "ordered": true},
+    "cancellation": {"accepted": true, "method": "solar.cancel"},
+    "notifications": {"accepted": false},
+    "limits": {
+      "max_request_bytes": 16777216,
+      "max_queued_requests": 256,
+      "max_queued_bytes": 67108864,
+      "remembered_request_ids": 1024,
+      "max_abandoned_workers": 64,
+      "default_max_output_bytes": 8388608
+    }
+  }
+}
+```
+
+| Member | What a client does with it |
+| ------ | --------------------------- |
+| `batch.accepted` | Whether to send an array of requests at all, section 3.2 |
+| `batch.max_elements` | How many to put in one, before `BATCH_TOO_LARGE` |
+| `batch.ordered` | Whether the responses come back in the order of the requests. SOLAR promises it; JSON-RPC 2.0 does not, so a client that speaks to both asks |
+| `cancellation.accepted` | Whether a call in flight can be asked to stop, section 9 |
+| `cancellation.method` | What does the asking, so that the name can move without breaking a reader. `null` when cancellation is not accepted |
+| `notifications.accepted` | Always `false` in `solar/1`, which is the deviation of section 3.1 |
+| `limits.*` | Every number a caller has to respect: the request line of section 2, the queue bounds of 9.6, the window of 9.7, the cap of section 10 and the default of 8.3 |
+
+**A client reads this instead of experimenting.** A limit that changes without the
+manifest changing fails a test in `solar-core/src/manifest.rs`, which compares each number
+with the constant that enforces it.
+
+`capabilities` arrived in `schema_version` **2.1.0**, a minor bump: a member was added to
+the document and nothing else changed, so a consumer written against 2.0.0 reads a 2.1.0
+manifest by ignoring what it does not know.
+
+### 8.3 Examples are tests
 
 An example is `{name, description, params, response, match}`, where `params` is a request
 `params` object and `response` is the expected `result.data`. Examples are not decoration:
@@ -312,7 +357,7 @@ example pins down the shape of a timestamp, a path or a duration without pretend
 the value. An example never states a value that the machine running the test cannot
 reproduce.
 
-### 8.3 A response has a maximum size
+### 8.4 A response has a maximum size
 
 Every API declares `max_output_bytes`, the largest response it may produce, measured on
 the serialised `result.data`. The default for the whole contract is **8 MiB**, half the

@@ -48,8 +48,22 @@ pub(crate) fn run(root: &Path, base: &str) -> Result<(), String> {
     let before = resolve_all(&manifest_at(root, base)?);
     let after = resolve_all(&current_manifest(root)?);
 
-    let old_apis = apis_by_name(&before);
-    let new_apis = apis_by_name(&after);
+    let changes = differences(&before, &after);
+    report(
+        base,
+        &changes,
+        &apis_by_name(&before),
+        &apis_by_name(&after),
+    )
+}
+
+/// Every difference between two resolved manifests, classified.
+///
+/// Separated from the reading and the printing so that it can be tested against two
+/// documents written by hand, which is how the rules below are pinned.
+fn differences(before: &Value, after: &Value) -> Vec<Change> {
+    let old_apis = apis_by_name(before);
+    let new_apis = apis_by_name(after);
     let mut changes = Vec::new();
 
     for (name, old) in &old_apis {
@@ -73,18 +87,30 @@ pub(crate) fn run(root: &Path, base: &str) -> Result<(), String> {
     }
 
     if before.get("schema_version") != after.get("schema_version") {
+        let (was, now) = (
+            text(before, "schema_version"),
+            text(after, "schema_version"),
+        );
+        // Record 22: a consumer refuses a manifest whose **major** differs from the one it
+        // was written against, and reads one whose minor moved. A minor bump is therefore
+        // additive here, which is what makes it possible to add a member to the document.
+        let breaking = major_of(&was) != major_of(&now);
         changes.push(Change {
             api: "the manifest".to_owned(),
-            what: format!(
-                "the layout version went from {} to {}",
-                text(&before, "schema_version"),
-                text(&after, "schema_version")
-            ),
-            breaking: true,
+            what: format!("the layout version went from {was} to {now}"),
+            breaking,
         });
     }
 
-    report(base, &changes, &old_apis, &new_apis)
+    changes
+}
+
+/// The major of a semantic version, or the whole string when it has no dot.
+///
+/// A version this cannot read is treated as its own major, so an unreadable one differs
+/// from everything and is reported as breaking rather than quietly ignored.
+fn major_of(version: &str) -> &str {
+    version.split_once('.').map_or(version, |(major, _)| major)
 }
 
 /// Compares one API with its earlier self.
@@ -630,6 +656,33 @@ mod tests {
             })
             .collect();
         json!({"schema_version": "2.0.0", "$defs": defs.clone(), "apis": entries})
+    }
+
+    #[test]
+    fn a_minor_layout_bump_is_additive_and_a_major_one_is_breaking() {
+        // Record 22: a consumer refuses a manifest whose major differs and reads one whose
+        // minor moved, so adding a member to the document has to be possible.
+        let before = json!({"schema_version": "2.0.0", "apis": []});
+
+        let minor = json!({"schema_version": "2.1.0", "apis": []});
+        let changes = differences(&before, &minor);
+        assert_eq!(changes.len(), 1);
+        assert!(!changes[0].breaking, "{}", changes[0].what);
+        assert!(changes[0].what.contains("2.0.0"));
+        assert!(changes[0].what.contains("2.1.0"));
+
+        let major = json!({"schema_version": "3.0.0", "apis": []});
+        let changes = differences(&before, &major);
+        assert_eq!(changes.len(), 1);
+        assert!(changes[0].breaking, "a new major is a new document");
+    }
+
+    #[test]
+    fn a_version_that_cannot_be_read_is_its_own_major() {
+        assert_eq!(major_of("2.1.0"), "2");
+        assert_eq!(major_of("10.0.0"), "10");
+        assert_eq!(major_of("nonsense"), "nonsense");
+        assert_eq!(major_of(""), "");
     }
 
     #[test]

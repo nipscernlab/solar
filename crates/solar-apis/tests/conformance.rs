@@ -35,7 +35,7 @@ struct Case {
     /// The whole response envelope that must come back: an object for a single request,
     /// an array for a batch.
     response: Value,
-    /// `exact` or `subset`, the two modes of section 8.2 of the contract.
+    /// `exact` or `subset`, the two modes of section 8.3 of the contract.
     #[serde(rename = "match")]
     match_mode: String,
 }
@@ -169,6 +169,7 @@ fn the_suite_covers_the_cases_a_client_has_to_handle() {
         "batch_answers_every_element_in_order",
         "batch_empty_is_refused",
         "cancel_an_id_nothing_is_using",
+        "the_manifest_declares_what_it_accepts",
         "parse_error",
         "method_not_found_suggests_the_closest",
         "unknown_parameter_is_refused",

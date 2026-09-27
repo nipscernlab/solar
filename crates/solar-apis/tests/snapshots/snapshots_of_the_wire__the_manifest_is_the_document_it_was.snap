@@ -4,11 +4,58 @@ assertion_line: 135
 expression: manifest
 ---
 {
-  "schema_version": "2.0.0",
+  "schema_version": "2.1.0",
   "protocol": "solar/1",
   "solar_version": "[version]",
   "schema_dialect": "https://json-schema.org/draft/2020-12/schema",
+  "capabilities": {
+    "batch": {
+      "accepted": true,
+      "max_elements": 64,
+      "ordered": true
+    },
+    "cancellation": {
+      "accepted": true,
+      "method": "solar.cancel"
+    },
+    "notifications": {
+      "accepted": false
+    },
+    "limits": {
+      "max_request_bytes": 16777216,
+      "max_queued_requests": 256,
+      "max_queued_bytes": 67108864,
+      "remembered_request_ids": 1024,
+      "max_abandoned_workers": 64,
+      "default_max_output_bytes": 8388608
+    }
+  },
   "$defs": {
+    "BatchCapability": {
+      "description": "What this build does with a line holding an array of requests.",
+      "properties": {
+        "accepted": {
+          "description": "Whether an array of requests is answered rather than refused.",
+          "type": "boolean"
+        },
+        "max_elements": {
+          "description": "The most elements one batch may hold. A larger one is refused as a whole with\n`RESOURCE_EXHAUSTED` / `BATCH_TOO_LARGE`.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "ordered": {
+          "description": "Whether the responses come back in the order of the requests. SOLAR promises this;\nJSON-RPC 2.0 does not, so a client that speaks to both has to ask.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "accepted",
+        "max_elements",
+        "ordered"
+      ],
+      "type": "object"
+    },
     "BuildInfo": {
       "description": "How this binary was built.",
       "properties": {
@@ -72,6 +119,54 @@ expression: manifest
         }
       ]
     },
+    "CancellationCapability": {
+      "description": "What this build does when a caller stops waiting for a call.",
+      "properties": {
+        "accepted": {
+          "description": "Whether a call in flight can be asked to stop at all.",
+          "type": "boolean"
+        },
+        "method": {
+          "description": "The method that does the asking, `null` when cancellation is not accepted.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "accepted"
+      ],
+      "type": "object"
+    },
+    "Capabilities": {
+      "description": "What the protocol this build speaks accepts, and every limit a caller must respect.\n\nA manifest used to say what the APIs are and nothing about the protocol carrying them,\nso a client could not tell whether batches were accepted without trying one. SOLAR\n0.1.0 and 0.2.0 answer under the same protocol name, `solar/1`, and differ in exactly\nthat. This section is how a client finds out by reading rather than by experiment.\n\nEvery number here is the constant the code enforces, not a copy of it: a test compares\nthe two, so a limit that changes without the manifest changing fails the suite.",
+      "properties": {
+        "batch": {
+          "$ref": "#/$defs/BatchCapability",
+          "description": "Whether a line may hold an array of requests, and how many it may hold."
+        },
+        "cancellation": {
+          "$ref": "#/$defs/CancellationCapability",
+          "description": "Whether a call in flight can be asked to stop, and what does the asking."
+        },
+        "limits": {
+          "$ref": "#/$defs/Limits",
+          "description": "The limits a caller has to respect, in the units the contract states them in."
+        },
+        "notifications": {
+          "$ref": "#/$defs/NotificationCapability",
+          "description": "Whether a message without `id` is accepted. It never is: section 3.1."
+        }
+      },
+      "required": [
+        "batch",
+        "cancellation",
+        "notifications",
+        "limits"
+      ],
+      "type": "object"
+    },
     "ErrorSpec": {
       "description": "One `{status, reason}` pair an API declares it may return.",
       "properties": {
@@ -121,6 +216,56 @@ expression: manifest
       ],
       "type": "object"
     },
+    "Limits": {
+      "description": "Every limit a caller has to respect, in one place.",
+      "properties": {
+        "default_max_output_bytes": {
+          "description": "The largest response an API may produce unless it declares a smaller one. Each\nAPI declares its own in `max_output_bytes`.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "max_abandoned_workers": {
+          "description": "The most handlers that may be alive after overrunning their budget, before a new\ncall is refused with `UNAVAILABLE` / `TOO_MANY_ABANDONED`.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "max_queued_bytes": {
+          "description": "The most bytes of unanswered request text a session holds.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "max_queued_requests": {
+          "description": "The most unanswered requests a session holds before it refuses more.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "max_request_bytes": {
+          "description": "The longest request line, in bytes, not counting the newline.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "remembered_request_ids": {
+          "description": "How many answered identifiers a session remembers, for `solar.cancel` to report\n`already_finished` rather than `unknown`.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "max_request_bytes",
+        "max_queued_requests",
+        "max_queued_bytes",
+        "remembered_request_ids",
+        "max_abandoned_workers",
+        "default_max_output_bytes"
+      ],
+      "type": "object"
+    },
     "ManifestEntry": {
       "description": "One API as it appears in the manifest.",
       "properties": {
@@ -147,7 +292,7 @@ expression: manifest
           "type": "boolean"
         },
         "max_output_bytes": {
-          "description": "The largest response this API may produce, in bytes of serialised `result.data`.\n\nSection 8.3 of the contract. [`DEFAULT_MAX_OUTPUT_BYTES`] is what an API declares\nunless it has a reason to declare less. Dispatch refuses a larger response with\n`RESOURCE_EXHAUSTED` / `OUTPUT_TOO_LARGE`, because a line nothing can buffer is\nnot a response: large data travels by pagination or by reference.",
+          "description": "The largest response this API may produce, in bytes of serialised `result.data`.\n\nSection 8.4 of the contract. [`DEFAULT_MAX_OUTPUT_BYTES`] is what an API declares\nunless it has a reason to declare less. Dispatch refuses a larger response with\n`RESOURCE_EXHAUSTED` / `OUTPUT_TOO_LARGE`, because a line nothing can buffer is\nnot a response: large data travels by pagination or by reference.",
           "format": "uint64",
           "minimum": 0,
           "type": "integer"
@@ -224,6 +369,19 @@ expression: manifest
           "type": "string"
         }
       ]
+    },
+    "NotificationCapability": {
+      "description": "What this build does with a message that carries no `id`.",
+      "properties": {
+        "accepted": {
+          "description": "Always false in `solar/1`: every call gets a response, so a message without an\n`id` is refused rather than acted on silently.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "accepted"
+      ],
+      "type": "object"
     },
     "Reason": {
       "description": "Why a call failed, one constant per documented failure.",
@@ -598,7 +756,7 @@ expression: manifest
             "type": "boolean"
           },
           "max_output_bytes": {
-            "description": "The largest response this API may produce, in bytes of serialised `result.data`.\n\nSection 8.3 of the contract. [`DEFAULT_MAX_OUTPUT_BYTES`] is what an API declares\nunless it has a reason to declare less. Dispatch refuses a larger response with\n`RESOURCE_EXHAUSTED` / `OUTPUT_TOO_LARGE`, because a line nothing can buffer is\nnot a response: large data travels by pagination or by reference.",
+            "description": "The largest response this API may produce, in bytes of serialised `result.data`.\n\nSection 8.4 of the contract. [`DEFAULT_MAX_OUTPUT_BYTES`] is what an API declares\nunless it has a reason to declare less. Dispatch refuses a larger response with\n`RESOURCE_EXHAUSTED` / `OUTPUT_TOO_LARGE`, because a line nothing can buffer is\nnot a response: large data travels by pagination or by reference.",
             "format": "uint64",
             "minimum": 0,
             "type": "integer"
@@ -702,7 +860,7 @@ expression: manifest
           "response": {
             "apis": "$any",
             "protocol": "solar/1",
-            "schema_version": "2.0.0",
+            "schema_version": "2.1.0",
             "solar_version": "$any"
           },
           "match": "subset"
@@ -742,6 +900,10 @@ expression: manifest
             },
             "type": "array"
           },
+          "capabilities": {
+            "$ref": "#/$defs/Capabilities",
+            "description": "What the protocol accepts, and every limit a caller must respect."
+          },
           "protocol": {
             "description": "The protocol these APIs speak.",
             "type": "string"
@@ -764,6 +926,7 @@ expression: manifest
           "protocol",
           "solar_version",
           "schema_dialect",
+          "capabilities",
           "$defs",
           "apis"
         ],
@@ -793,7 +956,7 @@ expression: manifest
       "stability": "experimental",
       "summary": "Returns the manifest of every API this build answers to",
       "timeout_ms": 2000,
-      "version": "1.1.0"
+      "version": "1.2.0"
     },
     {
       "description": "The cheapest call SOLAR has. It touches nothing, reads nothing and starts nothing, so the time it takes is the time the protocol itself costs: the round trip of a line through a pipe plus dispatch. That makes it the call to measure with, and the call to reach for when something is not answering and the question is whether SOLAR is alive at all.\n\nWhatever is passed in `message` comes back in `echo`, untouched, which is how a caller tells one ping from another when several are in flight.",
@@ -892,7 +1055,7 @@ expression: manifest
               "rustc_version": "$any",
               "target": "$any"
             },
-            "manifest_schema_version": "2.0.0",
+            "manifest_schema_version": "2.1.0",
             "protocol": "solar/1",
             "solar_version": "$any"
           },

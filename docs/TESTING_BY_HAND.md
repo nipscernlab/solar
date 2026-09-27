@@ -161,6 +161,18 @@ commit it was built from, whether the working tree was dirty, the profile, the t
 triple and the compiler. On a Mac the target says `aarch64-apple-darwin` on Apple silicon,
 or `x86_64-apple-darwin` on an Intel Mac.
 
+### What the protocol accepts
+
+```bash
+./target/release/solar manifest --api solar.ping | python -c "import json,sys; print(json.dumps(json.load(sys.stdin)['capabilities'], indent=2))"
+```
+
+The `capabilities` block: whether batches are accepted and how many elements one may
+hold, whether cancellation exists and which method performs it, and every limit a caller
+has to respect. A client reads this instead of finding the limits by experiment. If your
+machine has no `python`, `./target/release/solar manifest --pretty` shows the same block
+near the top of a longer document.
+
 ### What it can do
 
 ```bash

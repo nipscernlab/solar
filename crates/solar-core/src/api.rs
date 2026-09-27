@@ -155,7 +155,7 @@ pub struct ApiSpec {
     pub timeout_ms: u64,
     /// The largest response this API may produce, in bytes of serialised `result.data`.
     ///
-    /// Section 8.3 of the contract. [`DEFAULT_MAX_OUTPUT_BYTES`] is what an API declares
+    /// Section 8.4 of the contract. [`DEFAULT_MAX_OUTPUT_BYTES`] is what an API declares
     /// unless it has a reason to declare less. Dispatch refuses a larger response with
     /// `RESOURCE_EXHAUSTED` / `OUTPUT_TOO_LARGE`, because a line nothing can buffer is
     /// not a response: large data travels by pagination or by reference.
@@ -264,7 +264,7 @@ mod tests {
     #[test]
     fn the_default_output_size_is_the_number_the_contract_states() {
         // Written as a plain number, because the point is that eight mebibytes is what
-        // section 8.3 says, not that one arithmetic expression equals itself.
+        // section 8.4 says, not that one arithmetic expression equals itself.
         assert_eq!(DEFAULT_MAX_OUTPUT_BYTES, 8_388_608);
         assert_eq!(
             DEFAULT_MAX_OUTPUT_BYTES * 2,
