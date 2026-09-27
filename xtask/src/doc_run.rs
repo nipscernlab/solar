@@ -145,11 +145,7 @@ fn release_binary(target: &Path) -> std::path::PathBuf {
 /// A file that is not there, or that opens for writing, is not the problem being looked
 /// for, and the caller falls back to the general message.
 fn binary_is_running(path: &Path) -> bool {
-    path.exists()
-        && std::fs::OpenOptions::new()
-            .write(true)
-            .open(path)
-            .is_err()
+    path.exists() && std::fs::OpenOptions::new().write(true).open(path).is_err()
 }
 
 /// The release binary the blocks call.

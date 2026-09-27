@@ -60,11 +60,16 @@ cargo nextest run -p solar-apis --test conformance
 
 ## It really is language-neutral
 
-That claim was checked rather than asserted: the cases were replayed from Python,
-with a fifteen line matcher and no Rust involved, against the release binary. Eleven
-sent, eleven answered, nothing failed. A client in TypeScript needs the same fifteen
-lines: send `request` or `request_line`, read one line back, and compare by the rule in
-`match`, treating `"$any"` as a wildcard.
+That claim was checked rather than asserted, twice. The first eleven cases were replayed
+from Python against the release binary in stage two. All fifteen were replayed again on
+27 September 2026, with a forty line client and no Rust involved: **fifteen sent, fifteen
+answered as the case says, none failed.**
+
+A client in TypeScript needs the same forty lines: send `request` or `request_line`, read
+one line back, and compare by the rule in `match`, treating `"$any"` as a wildcard. The
+one thing worth knowing before writing it is that the bytes matter: one case begins with
+a byte order mark, so the request goes to the process as UTF-8 bytes rather than through
+whatever encoding the system happens to prefer.
 
 ## Adding one
 
