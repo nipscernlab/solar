@@ -12,10 +12,26 @@ exclude_globs = [
 ]
 
 exclude_re = [
-  # A Display impl that prints a different string is a mutant nothing should fail for;
-  # what matters about these is checked by the snapshots, not by their bodies.
-  "impl Display for .*::fmt",
+  # A hand written Display or Debug that prints a different string is a mutant nothing
+  # should fail for: what a value prints is not a promise of the contract, and what is
+  # promised, the wire and the screen, is pinned by snapshots rather than by these bodies.
+  #
+  # The pattern names the shape cargo-mutants really prints, which is
+  # `<impl std::fmt::Display for Status>::fmt`. It read `impl Display for .*::fmt`
+  # until 27 September 2026, matched nothing, and the exclusion silently did not apply:
+  # found by reading a run instead of trusting it, for the second time.
+  "<impl .*(Display|Debug) for .*>::fmt",
 ]
+
+# The whole workspace judges every mutant, not only the crate the mutant is in.
+#
+# cargo-mutants runs `--package=<the mutated crate>` by default, which is faster and
+# answers a different question: it asks whether the crate's own tests notice, when what
+# SOLAR promises is that the suite notices. A line of `solar-core` checked by a
+# `solar-cli` test is a checked line, and with the default it read as a survivor. Found
+# on 27 September 2026 by mutating `logging::log` by hand and watching two command line
+# tests fail, after the run had reported it as surviving.
+test_workspace = true
 
 # nextest, so a mutant that hangs is killed by the same timeout the suite uses.
 test_tool = "nextest"

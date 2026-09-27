@@ -533,6 +533,61 @@ mod tests {
     }
 
     #[test]
+    fn the_limits_are_the_numbers_the_contract_states() {
+        // Written as plain numbers, because what matters is that they are the values
+        // section 9.6 and 9.7 declare, not that an expression equals itself.
+        assert_eq!(MAX_QUEUED_REQUESTS, 256);
+        assert_eq!(MAX_QUEUED_BYTES, 67_108_864);
+        assert_eq!(REMEMBERED_IDS, 1_024);
+    }
+
+    #[test]
+    fn cancelling_one_queued_message_leaves_the_others_in_flight() {
+        let state = SessionState::new();
+        for number in 1..=4 {
+            put(&state, number).expect("the queue has room");
+        }
+
+        assert_eq!(state.cancel(&id(2)), CancelOutcome::CancelledWhileQueued);
+
+        assert!(!state.is_in_flight(&id(2)), "the cancelled one is free");
+        for still_waiting in [1, 3, 4] {
+            assert!(
+                state.is_in_flight(&id(still_waiting)),
+                "id {still_waiting} is still waiting its turn and is still in flight"
+            );
+        }
+        assert_eq!(state.load().0, 3);
+    }
+
+    #[test]
+    fn cancelling_keeps_the_window_of_remembered_identifiers_bounded() {
+        // The same bound as `finish`, on the other path that adds to it: a session that
+        // cancels a great many queued calls must not grow either.
+        let state = SessionState::new();
+        let first = id(0);
+        for number in 0..i64::try_from(REMEMBERED_IDS).unwrap() {
+            put(&state, number).expect("the queue has room");
+            assert_eq!(
+                state.cancel(&id(number)),
+                CancelOutcome::CancelledWhileQueued
+            );
+        }
+        assert_eq!(state.cancel(&first), CancelOutcome::AlreadyFinished);
+
+        put(&state, 5_000).expect("the queue has room");
+        assert_eq!(
+            state.cancel(&id(5_000)),
+            CancelOutcome::CancelledWhileQueued
+        );
+        assert_eq!(
+            state.cancel(&first),
+            CancelOutcome::Unknown,
+            "the oldest identifier has left the window"
+        );
+    }
+
+    #[test]
     fn a_session_remembers_only_the_most_recent_identifiers() {
         let state = SessionState::new();
         let first = id(0);

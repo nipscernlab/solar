@@ -41,6 +41,11 @@ protocol is stated here in its own line.
   resident memory of the server. The figures are in the README.
 - `crates/solar-apis/tests/heap.rs`, which counts what one `solar.ping` allocates with
   `dhat` and holds a ceiling, so a change that allocates more has to say why.
+- Tests for the limits themselves: a line of exactly 16 MiB is read and one byte more is
+  not, on both paths through the reader, and an oversized line reports the length it
+  really was. The queue bounds and the window of remembered identifiers are compared with
+  the numbers the contract states, and cancelling a queued call leaves the others in
+  flight.
 - Tests for lines that nothing checked, found by mutation testing: the value of
   `DEFAULT_MAX_OUTPUT_BYTES`, `BuildInfo::is_complete` in both directions, the calendar
   before the epoch checked against an obvious implementation written beside it,

@@ -375,22 +375,6 @@ fn run_from_queue<W: Write, F: Write>(wiring: &Wiring<'_, W, F>) -> std::io::Res
     Ok(())
 }
 
-/// Serialises one response, writes it, flushes it, and gives back what it wrote.
-///
-/// This is the one call form, for a caller that has a [`Response`] rather than a session.
-///
-/// # Errors
-///
-/// Returns the first output failure.
-pub fn write_response<W: Write>(output: &mut W, response: &Response) -> std::io::Result<String> {
-    let line = response.to_line();
-    logging::trace(&format!("<-- {line}"));
-    output.write_all(line.as_bytes())?;
-    output.write_all(b"\n")?;
-    output.flush()?;
-    Ok(line)
-}
-
 /// A response to something that never became a request, so it has no id and no method.
 fn bare_failure(error: SolarError) -> Response {
     let meta = Meta::new(None, None, None, clock::now_rfc3339_micros(), 0);
@@ -499,6 +483,68 @@ mod tests {
             "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"a.b\"}"
         );
         serve(input.as_bytes(), &mut output, &dispatcher).unwrap();
+    }
+
+    #[test]
+    fn a_line_of_exactly_the_limit_is_read_and_one_byte_more_is_not() {
+        // The limit is a limit, not a margin, and it is checked on both paths through the
+        // reader: the chunk that holds the newline, and the chunk that does not.
+        for with_newline in [true, false] {
+            let mut input: Vec<u8> = vec![b'x'; 64];
+            if with_newline {
+                input.push(b'\n');
+            }
+            let mut reader = input.as_slice();
+            let mut buffer = Vec::new();
+            assert_eq!(
+                read_line_limited(&mut reader, &mut buffer, 64).unwrap(),
+                Outcome::Line,
+                "64 bytes is not more than a limit of 64 (newline: {with_newline})"
+            );
+            assert_eq!(buffer.len(), 64);
+
+            let mut input: Vec<u8> = vec![b'x'; 65];
+            if with_newline {
+                input.push(b'\n');
+            }
+            let mut reader = input.as_slice();
+            let mut buffer = Vec::new();
+            assert!(
+                matches!(
+                    read_line_limited(&mut reader, &mut buffer, 64).unwrap(),
+                    Outcome::TooLong(_)
+                ),
+                "65 bytes is more than a limit of 64 (newline: {with_newline})"
+            );
+            assert!(buffer.is_empty(), "nothing of an oversized line is kept");
+        }
+    }
+
+    #[test]
+    fn an_oversized_line_reports_how_long_it_really_was() {
+        // The number goes into the error the caller reads, so it has to be the length of
+        // the line rather than of the piece that happened to cross the limit.
+        for (bytes, with_newline) in [(100usize, true), (100, false), (5_000, true)] {
+            let mut input: Vec<u8> = vec![b'x'; bytes];
+            if with_newline {
+                input.push(b'\n');
+            }
+            let mut reader = input.as_slice();
+            let mut buffer = Vec::new();
+            let outcome = read_line_limited(&mut reader, &mut buffer, 64).unwrap();
+            assert_eq!(
+                outcome,
+                Outcome::TooLong(bytes),
+                "a line of {bytes} bytes is reported as {bytes} bytes"
+            );
+        }
+    }
+
+    #[test]
+    fn the_error_for_an_oversized_line_carries_the_length_it_was_given() {
+        let error = too_large(4_096);
+        assert_eq!(error.details()[0].received, Value::from(4_096));
+        assert!(error.message().contains(&MAX_REQUEST_BYTES.to_string()));
     }
 
     #[test]
