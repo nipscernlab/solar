@@ -63,8 +63,20 @@ jobs:
           rustc --version
           cargo --version
 
+      # Prebuilt binaries for the checkers cargo would otherwise compile from source.
+      - name: Install typos and taplo
+        uses: taiki-e/install-action@4cef1412cce204788f482e778a0b9187f9626a29 # v2.87.21
+        with:
+          tool: typos-cli,taplo-cli
+
       - name: Formatting
         run: cargo fmt --all -- --check
+
+      - name: TOML formatting
+        run: taplo fmt --check
+
+      - name: Spelling
+        run: typos
 
       - name: Lints
         run: cargo clippy --workspace --all-targets --locked -- -D warnings

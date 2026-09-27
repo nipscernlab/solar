@@ -90,7 +90,7 @@ pub fn deserialize<T: DeserializeOwned>(
 /// Builds a JSON pointer from the path serde walked before it gave up.
 fn pointer_of(path: &serde_path_to_error::Path) -> String {
     let mut pointer = String::new();
-    for segment in path.iter() {
+    for segment in path {
         match segment {
             Segment::Seq { index } => {
                 pointer.push('/');
@@ -237,7 +237,8 @@ fn hint_for(
     };
 
     if let Some(example) = example {
-        hint.push_str(&format!(" A call that works: {example}."));
+        use std::fmt::Write as _;
+        let _ = write!(hint, " A call that works: {example}.");
     }
     hint
 }
@@ -275,9 +276,9 @@ mod tests {
         serde_json::to_value(schema_for!(Params)).unwrap()
     }
 
-    fn read(params: Value) -> SolarError {
+    fn read(params: &Value) -> SolarError {
         let example = json!({"api": "solar.ping"});
-        deserialize::<Params>("test.api", &params, &schema(), Some(&example))
+        deserialize::<Params>("test.api", params, &schema(), Some(&example))
             .expect_err("these params should be refused")
     }
 
@@ -292,7 +293,7 @@ mod tests {
 
     #[test]
     fn a_missing_member_points_at_it_and_says_what_it_should_hold() {
-        let error = read(json!({}));
+        let error = read(&json!({}));
         assert_eq!(error.reason(), Reason::MissingField);
         let detail = &error.details()[0];
         assert_eq!(detail.field.as_deref(), Some("/api"));
@@ -311,7 +312,7 @@ mod tests {
 
     #[test]
     fn a_misspelled_member_is_refused_and_the_right_name_is_suggested() {
-        let error = read(json!({"api": "solar.ping", "dept": 1}));
+        let error = read(&json!({"api": "solar.ping", "dept": 1}));
         assert_eq!(error.reason(), Reason::UnknownField);
         let detail = &error.details()[0];
         assert_eq!(detail.field.as_deref(), Some("/dept"));
@@ -325,7 +326,7 @@ mod tests {
 
     #[test]
     fn the_wrong_type_names_the_type_the_schema_wanted() {
-        let error = read(json!({"api": 3}));
+        let error = read(&json!({"api": 3}));
         assert_eq!(error.reason(), Reason::TypeMismatch);
         let detail = &error.details()[0];
         assert_eq!(detail.field.as_deref(), Some("/api"));
@@ -335,7 +336,7 @@ mod tests {
 
     #[test]
     fn a_value_out_of_range_is_an_invalid_value_and_echoes_what_arrived() {
-        let error = read(json!({"api": "x", "depth": 900}));
+        let error = read(&json!({"api": "x", "depth": 900}));
         assert_eq!(error.reason(), Reason::InvalidValue);
         assert_eq!(error.details()[0].field.as_deref(), Some("/depth"));
         assert_eq!(error.details()[0].received, json!(900));
@@ -343,7 +344,7 @@ mod tests {
 
     #[test]
     fn a_failure_inside_an_array_points_at_the_element() {
-        let error = read(json!({"api": "x", "tools": ["ok", 7]}));
+        let error = read(&json!({"api": "x", "tools": ["ok", 7]}));
         assert_eq!(error.reason(), Reason::TypeMismatch);
         assert_eq!(error.details()[0].field.as_deref(), Some("/tools/1"));
         assert_eq!(error.details()[0].received, json!(7));
@@ -353,7 +354,7 @@ mod tests {
     fn params_that_are_not_an_object_are_still_refused_with_a_complete_error() {
         // The protocol layer already refuses params that are not an object, so this only
         // guards the case where a caller of this module skips that check.
-        let error = read(json!([1, 2]));
+        let error = read(&json!([1, 2]));
         assert_eq!(error.reason(), Reason::TypeMismatch);
         assert!(!error.details().is_empty());
         assert!(error.details()[0].hint.is_some());

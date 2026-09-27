@@ -118,7 +118,7 @@ fn windows_version() -> Result<(u32, u32, u32), String> {
         service_pack: [u16; 128],
     }
 
-    #[allow(unsafe_code)]
+    #[allow(unsafe_code, reason = "a foreign function has no safe declaration")]
     #[link(name = "ntdll")]
     unsafe extern "system" {
         /// Fills in the version of the running system. Returns `STATUS_SUCCESS`, zero, or
@@ -135,11 +135,14 @@ fn windows_version() -> Result<(u32, u32, u32), String> {
         service_pack: [0; 128],
     };
 
+    #[allow(
+        unsafe_code,
+        reason = "the one foreign call of the repository; the SAFETY argument is below"
+    )]
     // SAFETY: `info` is a live, correctly aligned `RTL_OSVERSIONINFOW` whose `size` member
     // says how long it is, which is the whole of what `RtlGetVersion` requires. It writes
     // only inside that structure and returns a status rather than allocating anything, so
     // there is nothing to free and nothing else to get wrong.
-    #[allow(unsafe_code)]
     let status = unsafe { RtlGetVersion(&raw mut info) };
 
     if status == 0 {

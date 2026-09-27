@@ -89,7 +89,7 @@ impl Context {
         let mut warnings = self
             .warnings
             .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         warnings.push(warning);
     }
 
@@ -98,7 +98,7 @@ impl Context {
     pub fn warnings(&self) -> Vec<Warning> {
         self.warnings
             .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .clone()
     }
 }

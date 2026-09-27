@@ -12,7 +12,10 @@
 // The command line interface is where SOLAR talks to a person, so it prints to standard
 // output on purpose. The rule that keeps stdout clear of everything but protocol applies
 // to the library, and to `call` and `serve`, which print protocol and nothing else.
-#![allow(clippy::print_stdout)]
+#![allow(
+    clippy::print_stdout,
+    reason = "the command line interface is where SOLAR talks to a person; `call` and               `serve` print protocol and nothing else, and a test enforces that"
+)]
 
 use std::io::{IsTerminal, Write};
 use std::process::ExitCode;
@@ -98,16 +101,13 @@ fn main() -> ExitCode {
     let cli = Cli::parse();
 
     if let Some(level) = cli.log.as_deref() {
-        match Level::parse(level) {
-            Some(level) => logging::set_level(level),
-            None => {
-                eprintln!(
-                    "solar: --log {level} is not a level. Use off, error, warn, info, debug \
-                     or trace."
-                );
-                return ExitCode::from(Status::InvalidArgument.exit_code() as u8);
-            }
-        }
+        let Some(level) = Level::parse(level) else {
+            eprintln!(
+                "solar: --log {level} is not a level. Use off, error, warn, info, debug or                  trace."
+            );
+            return ExitCode::from(Status::InvalidArgument.exit_code());
+        };
+        logging::set_level(level);
     }
 
     let dispatcher = solar_apis::dispatcher();
@@ -245,15 +245,15 @@ fn serve(dispatcher: &Dispatcher, stdio: bool) -> std::io::Result<ExitCode> {
             "solar: serve needs --stdio, which is the only transport in solar/1. There is no \
              port to listen on, by design."
         );
-        return Ok(ExitCode::from(Status::InvalidArgument.exit_code() as u8));
+        return Ok(ExitCode::from(Status::InvalidArgument.exit_code()));
     }
 
-    let stdin = std::io::stdin();
-    let stdout = std::io::stdout();
-    if stdin.is_terminal() {
+    let input = std::io::stdin();
+    let output = std::io::stdout();
+    if input.is_terminal() {
         logging::info("reading from a terminal: one JSON object per line, Ctrl+Z or Ctrl+D to end");
     }
-    solar_core::server::serve(stdin.lock(), stdout.lock(), dispatcher)?;
+    solar_core::server::serve(input.lock(), output.lock(), dispatcher)?;
     Ok(ExitCode::SUCCESS)
 }
 
@@ -271,7 +271,7 @@ fn response_duration_us(response: &Response) -> u64 {
 fn exit_code_of(response: &Response) -> ExitCode {
     match response.status() {
         None => ExitCode::SUCCESS,
-        Some(status) => ExitCode::from(status.exit_code() as u8),
+        Some(status) => ExitCode::from(status.exit_code()),
     }
 }
 
@@ -282,7 +282,7 @@ fn exit_code_of(response: &Response) -> ExitCode {
 fn human_call(
     dispatcher: &Dispatcher,
     method: &str,
-    params: Value,
+    params: &Value,
 ) -> Result<Value, Box<Response>> {
     let request = json!({"jsonrpc": "2.0", "id": method, "method": method, "params": params});
     let response = dispatcher.handle_line(&request.to_string());
@@ -316,7 +316,7 @@ fn report(response: &Response) -> ExitCode {
 
 /// `solar list`
 fn list(dispatcher: &Dispatcher) -> std::io::Result<ExitCode> {
-    match human_call(dispatcher, "solar.manifest", json!({})) {
+    match human_call(dispatcher, "solar.manifest", &json!({})) {
         Err(response) => Ok(report(&response)),
         Ok(data) => {
             let mut out = std::io::stdout().lock();
@@ -329,7 +329,7 @@ fn list(dispatcher: &Dispatcher) -> std::io::Result<ExitCode> {
 
 /// `solar describe <method>`
 fn describe(dispatcher: &Dispatcher, method: &str) -> std::io::Result<ExitCode> {
-    match human_call(dispatcher, "solar.describe", json!({"api": method})) {
+    match human_call(dispatcher, "solar.describe", &json!({"api": method})) {
         Err(response) => Ok(report(&response)),
         Ok(data) => {
             let mut out = std::io::stdout().lock();
@@ -346,7 +346,7 @@ fn manifest(dispatcher: &Dispatcher, api: Option<&str>, pretty: bool) -> std::io
         Some(name) => json!({"api": name}),
         None => json!({}),
     };
-    match human_call(dispatcher, "solar.manifest", params) {
+    match human_call(dispatcher, "solar.manifest", &params) {
         Err(response) => Ok(report(&response)),
         Ok(data) => {
             // A person at a terminal wants the document laid out; a pipe wants one line.
@@ -366,7 +366,7 @@ fn manifest(dispatcher: &Dispatcher, api: Option<&str>, pretty: bool) -> std::io
 
 /// `solar version`
 fn version(dispatcher: &Dispatcher) -> std::io::Result<ExitCode> {
-    match human_call(dispatcher, "solar.version", json!({})) {
+    match human_call(dispatcher, "solar.version", &json!({})) {
         Err(response) => Ok(report(&response)),
         Ok(data) => {
             // The mark belongs in output meant for a person, never in a pipe.

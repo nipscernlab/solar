@@ -215,8 +215,8 @@ mod tests {
             "pub mod alpha;\npub mod beta;\npub mod gamma;\n\nfn other() {}\n"
         );
 
-        let with_zeta = insert_sorted(source, "pub mod zeta;\n", "pub mod ").unwrap();
-        assert!(with_zeta.starts_with("pub mod alpha;\npub mod gamma;\npub mod zeta;\n"));
+        let appended = insert_sorted(source, "pub mod zeta;\n", "pub mod ").unwrap();
+        assert!(appended.starts_with("pub mod alpha;\npub mod gamma;\npub mod zeta;\n"));
     }
 
     #[test]

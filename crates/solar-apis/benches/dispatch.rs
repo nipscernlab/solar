@@ -4,7 +4,12 @@
 //! `solar-cli/benches/binary.rs`, which measures the same work with the pipes put back.
 
 // A benchmark is not production code, and criterion's own API panics on misuse anyway.
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a benchmark that cannot set itself up has nothing to measure, so it panics"
+)]
 
 use std::hint::black_box;
 

@@ -2,7 +2,7 @@
 //!
 //! The check builds the release binary with the remap flags of [`crate::flags`] and then
 //! reads every byte of it looking for the two local paths those flags are meant to
-//! remove: the home directory and the repository root. Scanning the artifact is the only
+//! remove: the home directory and the repository root. Scanning the artefact is the only
 //! honest form of this check; a list of flags proves nothing about what the linker kept.
 
 use std::path::Path;

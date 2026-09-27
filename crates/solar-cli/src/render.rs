@@ -64,14 +64,16 @@ pub(crate) fn describe<W: Write>(out: &mut W, api: &Value) -> std::io::Result<()
     let effects = api
         .get("side_effects")
         .and_then(Value::as_array)
-        .map(|values| {
-            values
-                .iter()
-                .filter_map(Value::as_str)
-                .collect::<Vec<&str>>()
-                .join(", ")
-        })
-        .unwrap_or_else(|| "unknown".to_owned());
+        .map_or_else(
+            || "unknown".to_owned(),
+            |values| {
+                values
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .collect::<Vec<&str>>()
+                    .join(", ")
+            },
+        );
     writeln!(
         out,
         "stability {}   since {}   timeout {} ms   idempotent {}   touches {effects}",

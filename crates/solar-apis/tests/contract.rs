@@ -7,7 +7,12 @@
 // A test reports failure by panicking, so the lints that forbid it in production code are
 // lifted here. Integration tests are their own crate, which is why `clippy.toml` does not
 // cover them.
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a test reports failure by panicking; integration tests are their own crate, \n              so clippy.toml does not cover them"
+)]
 
 use std::path::{Path, PathBuf};
 

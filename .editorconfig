@@ -1,0 +1,28 @@
+# The one formatting truth editors agree on before rustfmt and taplo take over.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+[*.{md,yml,yaml,toml,json}]
+indent_size = 2
+
+[*.md]
+# A trailing double space is a hard line break in Markdown.
+trim_trailing_whitespace = false
+
+# The licence is copied byte for byte from nipscernlab/aurora and is never touched.
+[LICENSE]
+charset = unset
+end_of_line = unset
+insert_final_newline = unset
+trim_trailing_whitespace = unset
+
+# The terminal drawings of the mark carry trailing spaces that are part of the drawing.
+[docs/brand/banner*.txt]
+trim_trailing_whitespace = false

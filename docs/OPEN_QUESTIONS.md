@@ -314,7 +314,7 @@ file. They are computed in `xtask/src/flags.rs` and applied to every build xtask
 and CI exports the same flags for the builds it makes directly.
 
 **The consequence recorded plainly:** a bare `cargo build --release` outside xtask, on a
-developer's machine, still embeds that machine's paths. What is enforced is the artifact
+developer's machine, still embeds that machine's paths. What is enforced is the artefact
 that matters: `cargo xtask leak-check` builds the release binary with the flags and then
 scans every byte of it for the home directory, the user name as a path segment, and the
 repository root, in both slash spellings. CI runs it on the three systems. When
@@ -328,3 +328,20 @@ today there are five: two that would mutate the working tree (`cargo xtask new-a
 three lists of commands that already run as their own CI steps, where executing them again
 would only double the pipeline. `powershell` means Windows PowerShell 5.1, the shell whose
 quoting the README documents, so those blocks run on the Windows job.
+
+### The repository is written in British English
+
+Licence, serialise, behaviour, catalogue. The first stage already wrote that way; this
+makes it a rule. `typos` runs with `locale = "en-gb"`, so an American spelling is flagged
+like any other typo, and `docs/STYLE.md` states the choice for prose that tools cannot
+check.
+
+### Pedantic lints are fixed or allowed at the site, never at the workspace
+
+The brief says each allowed lint is listed at workspace level with its reason. Every
+pedantic finding was instead either fixed or allowed exactly where it fires, with
+`reason = "..."` on the attribute, which `clippy::allow_attributes_without_reason`, denied
+workspace-wide, enforces mechanically. A workspace-level allow would silence a lint
+everywhere, including the future places where it is right; a local allow with a mandatory
+reason keeps the lint alive and the exception argued. The letter of the brief bends, its
+intent, that nothing is silenced without a written reason, is enforced by machine.

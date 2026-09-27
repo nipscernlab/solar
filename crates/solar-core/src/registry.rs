@@ -259,6 +259,10 @@ impl RegistryBuilder {
 }
 
 /// Checks one entry against every rule of section 8 of the contract.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one paragraph per rule of the contract; splitting it would scatter the list"
+)]
 fn check_entry(entry: &ApiEntry, problems: &mut Vec<RegistryProblem>) {
     let mut note = |rule: &'static str, detail: String| {
         problems.push(RegistryProblem {

@@ -22,7 +22,8 @@ pub fn now_rfc3339_micros() -> String {
 #[must_use]
 pub fn format_rfc3339_micros(time: SystemTime) -> String {
     let (secs, micros) = match time.duration_since(UNIX_EPOCH) {
-        Ok(delta) => (delta.as_secs() as i64, delta.subsec_micros()),
+        // Wrapping would need a clock 292 billion years past the epoch.
+        Ok(delta) => (delta.as_secs().cast_signed(), delta.subsec_micros()),
         Err(_) => (0, 0),
     };
 
@@ -40,6 +41,11 @@ pub fn format_rfc3339_micros(time: SystemTime) -> String {
 ///
 /// This is Howard Hinnant's `civil_from_days`, the algorithm behind `std::chrono`. It is
 /// exact for every year the proleptic Gregorian calendar covers.
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "the algorithm bounds day to 1..=31 and month to 1..=12 before the casts"
+)]
 const fn civil_from_days(days: i64) -> (i64, u32, u32) {
     let z = days + 719_468;
     let era = if z >= 0 { z } else { z - 146_096 } / 146_097;

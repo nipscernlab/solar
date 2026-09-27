@@ -8,7 +8,12 @@
 // A test reports failure by panicking, so the lints that forbid it in production code are
 // lifted here. Integration tests are their own crate, which is why `clippy.toml` does not
 // cover them.
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a test reports failure by panicking; integration tests are their own crate, \n              so clippy.toml does not cover them"
+)]
 
 use std::io::Write;
 use std::process::{Command, Output, Stdio};
@@ -202,9 +207,14 @@ fn a_batch_is_unimplemented() {
 
 #[test]
 fn a_session_answers_every_line_in_the_order_they_arrived() {
-    let input: String = (1..=4)
-        .map(|id| format!("{{\"jsonrpc\":\"2.0\",\"id\":{id},\"method\":\"solar.ping\"}}\n"))
-        .collect();
+    use std::fmt::Write as _;
+    let mut input = String::new();
+    for id in 1..=4 {
+        let _ = writeln!(
+            input,
+            "{{\"jsonrpc\":\"2.0\",\"id\":{id},\"method\":\"solar.ping\"}}"
+        );
+    }
     let output = serve(&input);
     assert_eq!(
         output.status.code(),

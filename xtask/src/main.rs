@@ -10,7 +10,10 @@
 
 // xtask is a developer tool, not a protocol server. Standard output is where it talks, so
 // the rule that keeps stdout clear of everything but protocol does not apply here.
-#![allow(clippy::print_stdout)]
+#![allow(
+    clippy::print_stdout,
+    reason = "xtask is a developer tool that talks on standard output; the channel rule \n              protects the protocol, which xtask never speaks"
+)]
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -25,7 +28,7 @@ const FAILED: u8 = 1;
 
 fn main() -> ExitCode {
     let arguments: Vec<String> = std::env::args().skip(1).collect();
-    let task = arguments.first().map(String::as_str).unwrap_or("help");
+    let task = arguments.first().map_or("help", String::as_str);
     let rest: Vec<&str> = arguments.iter().skip(1).map(String::as_str).collect();
 
     let outcome = match task {
@@ -75,8 +78,7 @@ cargo xtask <task>
 fn root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
-        .map(Path::to_path_buf)
-        .unwrap_or_else(|| PathBuf::from("."))
+        .map_or_else(|| PathBuf::from("."), Path::to_path_buf)
 }
 
 /// Regenerates the manifest, or reports that it is stale.

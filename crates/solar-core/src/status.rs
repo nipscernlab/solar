@@ -101,7 +101,7 @@ impl Status {
 
     /// The process exit code `solar call` uses for this status, per section 12.
     #[must_use]
-    pub const fn exit_code(self) -> i32 {
+    pub const fn exit_code(self) -> u8 {
         match self {
             Status::InvalidArgument => 2,
             Status::NotFound => 3,
@@ -152,7 +152,7 @@ mod tests {
         codes.dedup();
         assert_eq!(codes.len(), unique, "two statuses share a JSON-RPC code");
 
-        let mut exits: Vec<i32> = Status::ALL.iter().map(|s| s.exit_code()).collect();
+        let mut exits: Vec<u8> = Status::ALL.iter().map(|s| s.exit_code()).collect();
         exits.sort_unstable();
         let unique = exits.len();
         exits.dedup();

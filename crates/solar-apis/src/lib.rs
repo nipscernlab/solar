@@ -36,6 +36,11 @@ pub mod system_info;
 ///
 /// This function is the registry. Adding an API is one `.register::<...>()` line, in
 /// alphabetical order, and nothing that already exists has to change.
+///
+/// # Errors
+///
+/// Returns every rule of the template that a registered API broke. The contract tests
+/// fail on the same list, so this reaching a caller means the tests were not run.
 pub fn build_registry() -> Result<Registry, Vec<RegistryProblem>> {
     RegistryBuilder::new()
         .register::<solar_describe::SolarDescribe>()
@@ -85,7 +90,7 @@ pub(crate) mod test_support {
 
     /// A context over the real registry, with a generous budget.
     pub(crate) fn context(method: &str) -> Context {
-        context_with_budget(method, Duration::from_secs(60))
+        context_with_budget(method, Duration::from_mins(1))
     }
 
     /// A context over the real registry, with the budget a test wants.

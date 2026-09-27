@@ -6,7 +6,12 @@
 
 // A benchmark is not production code, and a benchmark that cannot set itself up has
 // nothing to measure, so it panics.
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a benchmark that cannot set itself up has nothing to measure, so it panics"
+)]
 
 use std::hint::black_box;
 use std::io::{BufRead, BufReader, Write};

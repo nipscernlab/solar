@@ -5,7 +5,12 @@
 //! that the session is still usable afterwards.
 
 // A test reports failure by panicking, and two of these APIs panic on purpose.
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a test reports failure by panicking; integration tests are their own crate, \n              so clippy.toml does not cover them"
+)]
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};

@@ -1,0 +1,40 @@
+# The spelling check, run by `cargo xtask ci` and by CI itself.
+#
+# The repository is written in British English: licence, serialise, behaviour. That is
+# recorded in docs/STYLE.md; this file makes `typos` agree. What is exempted below is
+# never prose: it is identifiers the ecosystem or the wire contract fixes, and two typos
+# that are deliberate.
+
+[default]
+locale = "en-gb"
+
+[default.extend-identifiers]
+# serde's API is spelt the American way, and the wire constant SERIALIZATION_FAILED is
+# published in docs/ERRORS.md and in every manifest: contract spelling, not prose.
+Serialize = "Serialize"
+Deserialize = "Deserialize"
+DeserializeOwned = "DeserializeOwned"
+serialize = "serialize"
+deserialize = "deserialize"
+skip_serializing_if = "skip_serializing_if"
+SERIALIZATION_FAILED = "SERIALIZATION_FAILED"
+SerializationFailed = "SerializationFailed"
+
+[default.extend-words]
+# NO_COLOR (no-color.org), COLORTERM, CLICOLOR, ANSI_COLOR and prefers-color-scheme are
+# the names of real environment variables and media features; the prose word is colour.
+color = "color"
+# The README and one test demonstrate the error for a misspelt parameter, and the typo
+# is the demonstration.
+mesage = "mesage"
+# A truncation test cuts the string hello after three bytes.
+hel = "hel"
+
+[files]
+extend-exclude = [
+  # Copied byte for byte from nipscernlab/aurora; its text is not ours to fix.
+  "LICENSE",
+  # Generated from the registry, never edited by hand.
+  "manifest/solar.manifest.json",
+  "Cargo.lock",
+]

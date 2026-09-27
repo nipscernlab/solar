@@ -61,7 +61,7 @@ fn wants_ascii() -> bool {
 #[must_use]
 pub(crate) fn wants_colour() -> bool {
     std::io::stdout().is_terminal()
-        && !std::env::var_os("NO_COLOR").is_some_and(|value| !value.is_empty())
+        && std::env::var_os("NO_COLOR").is_none_or(|value| value.is_empty())
 }
 
 /// The escape code for the deepest colour this terminal is known to understand.

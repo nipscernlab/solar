@@ -38,6 +38,13 @@ unreachable_pub = "warn"
 rust_2018_idioms = { level = "warn", priority = -1 }
 
 [workspace.lints.clippy]
+# The pedantic group is on as warnings, and CI turns warnings into errors. What the
+# group gets wrong for this repository is allowed here, each with its reason, so that a
+# lint is never silenced at the place it fires.
+pedantic = { level = "warn", priority = -1 }
+# Every `unsafe` block explains itself, and every `allow` says why.
+undocumented_unsafe_blocks = "deny"
+allow_attributes_without_reason = "deny"
 unwrap_used = "deny"
 expect_used = "deny"
 panic = "deny"

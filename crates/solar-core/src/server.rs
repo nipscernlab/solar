@@ -52,6 +52,10 @@ fn read_line_limited<R: BufRead>(
             });
         }
 
+        #[allow(
+            clippy::single_match_else,
+            reason = "the two arms are peers, found the newline or not; if let would bury one"
+        )]
         match chunk.iter().position(|byte| *byte == b'\n') {
             Some(index) => {
                 total += index;
@@ -219,9 +223,14 @@ mod tests {
 
     #[test]
     fn responses_come_back_in_request_order() {
-        let input = (1..=5)
-            .map(|id| format!("{{\"jsonrpc\":\"2.0\",\"id\":{id},\"method\":\"a.b\"}}\n"))
-            .collect::<String>();
+        use std::fmt::Write as _;
+        let mut input = String::new();
+        for id in 1..=5 {
+            let _ = writeln!(
+                input,
+                "{{\"jsonrpc\":\"2.0\",\"id\":{id},\"method\":\"a.b\"}}"
+            );
+        }
         let responses = run(&input);
         let ids: Vec<i64> = responses
             .iter()

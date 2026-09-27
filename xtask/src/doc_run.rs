@@ -24,8 +24,10 @@ struct Block {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-// The enum is Shell and one shell is called PowerShell; that is its name, not repetition.
-#[allow(clippy::enum_variant_names)]
+#[allow(
+    clippy::enum_variant_names,
+    reason = "the enum is Shell and one shell is really called PowerShell"
+)]
 enum Shell {
     Bash,
     PowerShell,
@@ -177,10 +179,10 @@ fn walk(directory: &Path, into: &mut Vec<PathBuf>) {
 fn collect(file: &Path, text: &str, into: &mut Vec<Block>) {
     let mut lines = text.lines().enumerate();
     while let Some((index, line)) = lines.next() {
-        let Some(info) = line.strip_prefix("```") else {
+        let Some(fence_info) = line.strip_prefix("```") else {
             continue;
         };
-        let mut words = info.split_whitespace();
+        let mut words = fence_info.split_whitespace();
         let language = words.next().unwrap_or("");
         let skipped = words.any(|word| word == "no-run");
 

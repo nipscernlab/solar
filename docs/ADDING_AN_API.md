@@ -74,7 +74,7 @@ Example::subset(
     "one_target",
     "Builds a single target",
     json!({"target": "hello"}),
-    json!({"target": "hello", "artifacts": ANY, "duration_ms": ANY}),
+    json!({"target": "hello", "artefacts": ANY, "duration_ms": ANY}),
 )
 ```
 
