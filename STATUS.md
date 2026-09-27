@@ -1,17 +1,31 @@
 # Status
 
-**Stage:** three, the gaps that get more expensive with every API added. **Version:**
-0.2.0. **Protocol:** `solar/1`. **Written on:** 27 September 2026. **Machine everything
+**Stage:** four, the architect's decisions and the three things ZENITH needed.
+**Version:** 0.3.0. **Protocol:** `solar/1`. **Written on:** 27 September 2026. **Machine everything
 was built and measured on unless another is named:** Windows 11 Home Single Language
 26200, Intel Core i7-13620H, 16 hardware threads, `rustc 1.97.1`,
 `x86_64-pc-windows-msvc`.
 
-Stage two left an engineering foundation. Stage three closes what it left open: the lines
+Stage two left an engineering foundation. Stage three closed what it left open: the lines
 nothing checked, a manifest that would not stay readable, a session that could not be
 cancelled, memory that was bounded nowhere, and figures that were all taken one call at a
-time on an idle machine. It also fixed something the stage itself broke: a local mutation
-run filled this machine's disk, and what a build of this repository costs is now measured
-and bounded like everything else.
+time on an idle machine. It also fixed something that stage broke: a local mutation run
+filled this machine's disk, and what a build of this repository costs is now measured and
+bounded like everything else.
+
+Stage four settled what had been decided alone, and gave ZENITH the three things it had
+written down as missing. **No new functional API**: `solar.set_log_level` moves where the
+diagnostics go and nothing else.
+
+## What stage four added
+
+| What | Where it is decided | Where it is enforced |
+| ---- | ------------------- | --------------------- |
+| **Twenty-seven decisions become records**, 12 to 38, and `docs/OPEN_QUESTIONS.md` holds nothing open | the architect, 27 September 2026 | `docs/adr/`, one file each, MADR |
+| **`capabilities` in the manifest**: what the protocol accepts and every limit | contract 8.2 | a test compares each number with the constant that enforces it |
+| **`solar.set_log_level`**: the level changes while a session runs | contract 2 | a test through the real binary: the diagnostics move, the responses do not |
+| **A versioned recording format** | contract 12, [`docs/RECORDING.md`](docs/RECORDING.md) | a JSON Schema compiled out of the document, and a hand-written recording that replays |
+| **The mutation score, measured in CI** | — | the ceiling in `xtask/src/mutants.rs`, set from the run rather than inherited |
 
 ## What stage three added
 
@@ -78,9 +92,9 @@ of them is a promise about another machine.
 
 | What | Figure |
 | ---- | ------ |
-| Tests | **329**, all passing on Windows and on Linux |
-| Conformance cases | **15**, in plain JSON, replayable by a client in any language |
-| Coverage of the shipped crates | **93.75% of lines**, 94.17% of functions, 93.15% of regions. The floor is 91 and only ever rises. |
+| Tests | **350**, all passing on Windows and on Linux |
+| Conformance cases | **17**, in plain JSON, replayable by a client in any language |
+| Coverage of the shipped crates | **93.79% of lines**, 93.93% of functions, 93.23% of regions. The floor is 91 and only ever rises. |
 | Decision records | **38**, after the twenty-seven confirmed on 27 September 2026 |
 | The manifest | **1 088 lines** for six APIs, with shared `$defs`. It was 1 152 lines for five before they were shared, which is 230 lines per API then and 181 now |
 | Release binary | **1 782 272 bytes** on Windows, 9 486 144 on Linux, both with `debug = "line-tables-only"` |
@@ -243,6 +257,24 @@ built dispatcher hands out, the rule for printing a backtrace, five lines of ari
 the line reader, the identifiers left in flight when one queued call is cancelled, and
 every spelling of a log level and a log format.
 
+## What ZENITH asked for, and what it got
+
+ZENITH wrote three things down in the first section of its `docs/OPEN_QUESTIONS.md`, each
+with what would close it. All three are closed, and each was built to what ZENITH wrote
+rather than to what seemed reasonable here.
+
+| What ZENITH wrote | What it got |
+| ------------------ | ----------- |
+| *"A member of the manifest, at its root, that declares the batch support and its limit, for example `"batch": {"max_elements": 64}`, with a minor bump of `schema_version`."* | `capabilities` at the root, with that member and three more: cancellation and the method that performs it, that notifications are refused, and every limit a caller must respect. `schema_version` 2.0.0 to **2.1.0**, minor, as asked. |
+| *"An API such as `solar.set_log_level`, or a documented statement that the level is fixed for the life of a session."* | The API. ZENITH's workaround was to start SOLAR at `trace` and filter in the interface, paying for output it throws away; now it can ask. |
+| *"A section of SOLAR's contract, or a document beside it, that specifies the recording, with a version."* | Contract section 12 and [`docs/RECORDING.md`](docs/RECORDING.md), with a JSON Schema for one line. A recording written by hand in that shape replays, which is the test that matters. |
+
+**One thing was fixed because of this work rather than for it.** `cargo xtask compat`
+classified every change of `schema_version` as breaking, which would have made adding a
+member to the manifest impossible. Record 22 says a consumer refuses a manifest whose
+major differs and reads one whose minor moved; compat now reads the major, and two tests
+pin it in both directions.
+
 ## Linux, by hand rather than in CI
 
 Nothing in this repository had run on Linux outside GitHub's runners. It has now, on this
@@ -290,9 +322,9 @@ directory with a `rust-toolchain.toml`. Run it from inside the repository, or ru
 
 ## What the checks found, each one a real defect
 
-Ten so far, each found by the thing built to find it rather than by reading. The first
-seven are stage two, kept here because they are the argument for the checks; the last
-three are this stage.
+Eleven so far, each found by the thing built to find it rather than by reading. The first
+seven are stage two, kept here because they are the argument for the checks; then three
+from stage three, and one from stage four.
 
 1. **The README claimed a quoting form that does not work in `cmd.exe`.** Found by
    running the documentation. Every shell-tagged block is now executed by
@@ -348,31 +380,43 @@ three are this stage.
 | Every pull request | The compatibility check and the changelog check, both against the base branch |
 | Weekly, Monday 06:00 UTC | The latest stable compiler as an early warning; the declared minimum, proving `rust-version`; four fuzzing targets for three minutes each; the full mutation suite |
 
+11. **Two changelog entries were written into thin air.** The entry for
+   `solar.set_log_level`, and the one for the manifest capabilities that merged before it,
+   were added by replacing a line that existed on `main` but not yet on the branch being
+   edited. The replacement matched nothing and changed nothing, silently, twice. Found by
+   `cargo xtask changelog` on the second one; the first had slipped through because that
+   check asks whether the file moved, and its `### Changed` entry had. **A check that asks
+   whether a document moved cannot ask whether the right part of it moved**, which is why
+   the rest of the rule is on the pull request template rather than in a command.
+
 ## What Chrysthofer has to turn on
 
-**Repository settings were not changed**, as the brief instructed. These are the ones to
-set, at **Settings, Branches, Add branch ruleset** for `main`:
+**Everything below was turned on, on 27 September 2026.** It is kept here as the record of
+what the repository requires, because a setting nobody wrote down is a setting nobody can
+restore.
+
+The branch ruleset on `main`:
 
 | Setting | Value |
 | ------- | ----- |
 | Require a pull request before merging | on |
-| Required approvals | 1 |
-| Require review from Code Owners | on, which makes `.github/CODEOWNERS` binding |
-| Dismiss stale approvals when new commits are pushed | on |
-| Require status checks to pass | on, and select `ubuntu-latest`, `windows-latest`, `macos-latest`, `documentation` and `coverage` |
-| Require branches to be up to date before merging | on |
-| Require conversation resolution before merging | on |
+| Required approvals | 0, so that the architect can merge his own work without a second account |
+| Require status checks to pass | on: `ubuntu-latest`, `windows-latest`, `macos-latest`, `documentation` and `coverage` |
 | Block force pushes | on |
 | Restrict deletions | on |
 
-Two things to know before turning them on. The first is that this stage was written by
-pushing straight to `main`, so the rule starts applying to the next change, not to the
-history. The second is that a ruleset applies to its author as well unless bypass is
-granted, which is the point of having one.
+And, at **Settings, Code security**: Dependabot alerts, and secret scanning with push
+protection.
 
-Also worth enabling, at **Settings, Code security**: Dependabot alerts and the secret
-scanning that GitHub offers for public repositories. `.github/dependabot.yml` already
-asks for the weekly version updates; the alerts are a separate switch.
+**What that changed about the work.** Every change in stage four reached `main` through a
+pull request, merged when the five checks were green: six of them, numbered 1 to 6. Two
+were Dependabot's.
+
+It also caught two things a direct push would not have. A branch that was behind `main`
+compared its manifest against the wrong base and reported a member as removed, which is
+exactly what the check is for; rebasing fixed it. And the changelog check failed on a
+branch where the local pipeline had passed, because the local one compares against `main`
+as it was when the branch started.
 
 ## Every open question, answered
 
@@ -408,7 +452,8 @@ are the settled ones, and nothing is open.
 
 **Not started, and out of scope by instruction.** Anything that runs an external program:
 `tools.detect`, the table of known tools and the process runner, which are in the history
-at `1029db4` and its parent. Releases, distribution, installers and signing.
+at `1029db4` and its parent. Record 31 says they come in a later stage, after this version
+reaches the laboratory. Releases, distribution, installers and signing.
 
 **Known gaps, in the order they will start to hurt.**
 
@@ -416,8 +461,9 @@ at `1029db4` and its parent. Releases, distribution, installers and signing.
   they fall and never up.
 - `system.info` reporting the release of macOS has never run on a Mac outside GitHub's
   runners. That is what [`docs/TESTING_BY_HAND.md`](docs/TESTING_BY_HAND.md) is for.
-- ZENITH has no guide for testing by hand yet, so the interactive half of that guide
-  points at a repository rather than at a procedure.
+- The third thing ZENITH asked for is closed in SOLAR and open in ZENITH: the format is
+  specified and validated here, and ZENITH still exports in its own format, specified in
+  its `docs/DESIGN.md` section 12. Nothing here can close that half.
 - A batch runs its elements one at a time, which is the contract. If a client ever needs
   a batch of sixty-four slow calls, sixty-four times the slowest call is the wait, and
   the answer is not concurrency but a smaller batch.
