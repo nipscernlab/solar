@@ -344,7 +344,7 @@ three are this stage.
 
 | When | What |
 | ---- | ---- |
-| Every push and pull request | The fourteen steps of the one command, on `ubuntu-latest`, `windows-latest` and `macos-latest`, plus a documentation job and a coverage job. On this machine the whole pipeline takes **305 s** on Windows and about 140 s on Linux |
+| Every push and pull request | The fourteen steps of the one command, on `ubuntu-latest`, `windows-latest` and `macos-latest`, plus a documentation job and a coverage job. On this machine the whole pipeline takes **305 s** on Windows and **126 s** on Linux, both green on 27 September 2026 |
 | Every pull request | The compatibility check and the changelog check, both against the base branch |
 | Weekly, Monday 06:00 UTC | The latest stable compiler as an early warning; the declared minimum, proving `rust-version`; four fuzzing targets for three minutes each; the full mutation suite |
 
