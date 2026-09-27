@@ -268,7 +268,7 @@ nothing needed `sudo`.
 | `cargo nextest run --workspace --locked` | **passed, 329 tests, 0 failures, 2.9 s**, including the cancellation races, the cap on abandoned handlers and the allocation ceiling |
 | `solar call solar.ping` | **passed** |
 | `solar call system.info` | **passed**, and it names the system correctly: `os` is `linux`, `os_name` is `AlmaLinux`, `os_release` is `9.8`, with no warnings, so `/etc/os-release` was read as the contract says |
-| `cargo xtask ci`, the steps that need only Rust | **formatting, lints, doctests, documentation, manifest, compatibility, changelog, documentation runs and no local paths all passed** |
+| `cargo xtask ci`, the whole pipeline | **every step passed**, once the four tools it names were installed. The one failure worth recording is that `formatting` failed here and not on Windows, because a change had been made on Windows without `cargo fmt` after it: the pipeline caught on Linux what the laptop had not been asked |
 | `cargo xtask leak-check` | **passed**: the 9 486 144 byte release binary is clean of all four needles |
 
 The steps that needed a tool which was not installed said exactly which one and the line
@@ -344,7 +344,7 @@ three are this stage.
 
 | When | What |
 | ---- | ---- |
-| Every push and pull request | The fourteen steps of the one command, on `ubuntu-latest`, `windows-latest` and `macos-latest`, plus a documentation job and a coverage job |
+| Every push and pull request | The fourteen steps of the one command, on `ubuntu-latest`, `windows-latest` and `macos-latest`, plus a documentation job and a coverage job. On this machine the whole pipeline takes **305 s** on Windows and about 140 s on Linux |
 | Every pull request | The compatibility check and the changelog check, both against the base branch |
 | Weekly, Monday 06:00 UTC | The latest stable compiler as an early warning; the declared minimum, proving `rust-version`; four fuzzing targets for three minutes each; the full mutation suite |
 

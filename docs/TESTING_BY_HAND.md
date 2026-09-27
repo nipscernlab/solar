@@ -252,9 +252,9 @@ Honesty about what has actually been run, so that you know what you are the firs
 | ---- | ---------- | ----------------------------- | ----- |
 | Install with `rustup` | yes | yes | **only a Mac can confirm** |
 | `cargo build --release --locked` | yes | yes | **only a Mac can confirm** |
-| `cargo xtask ci` | yes | see `STATUS.md` | **only a Mac can confirm** |
+| `cargo xtask ci` | yes, every step | yes, every step, once four tools were installed with `cargo install` | **only a Mac can confirm** |
 | The calls of section 5 | yes | yes | **only a Mac can confirm** |
-| `system.info` naming the system | yes, `Windows 11 Home Single Language` | yes | **only a Mac can confirm**, and it is the reason this guide exists |
+| `system.info` naming the system | yes, `Windows 11 Home Single Language` | yes, `AlmaLinux` `9.8` | **only a Mac can confirm**, and it is the reason this guide exists |
 | The Apple developer tools | not applicable | not applicable | **only a Mac can confirm** |
 
 CI has run the whole suite on macOS since the first stage, on GitHub's runners. What it
