@@ -1,7 +1,8 @@
 # Status
 
 **Stage:** the core of the API. **Version:** 0.1.0. **Protocol:** `solar/1`.
-**Written on:** 27 September 2026. **Machine it was built and measured on:** Windows 11
+**Written on:** 27 September 2026. **Reviewed by the architect on:** 26 September 2026,
+and the review is answered below. **Machine it was built and measured on:** Windows 11
 Home Single Language 26200, Intel Core i7-13620H, `rustc 1.97.1`.
 
 ## What is ready
@@ -105,8 +106,10 @@ reasons for a program that cannot be started.
 
 **Known gaps.**
 
-- Continuous integration passed on Linux, Windows and macOS on the first push, run
-  36287385822. Nothing in this repository has been run on Linux or macOS by hand.
+- Nothing in this repository has been run on Linux or macOS by hand. Continuous
+  integration is what proves those two, and it passes: run 36289303434 is the current
+  one. The three readers of the operating system release are each verified there by a
+  test that reads the real source on the machine running it.
 - The manifest is 1152 lines for five APIs, because every JSON Schema is inlined in full.
   It will not stay readable at fifty. A shared `$defs` section is the obvious answer and is
   a change to `schema_version`.
