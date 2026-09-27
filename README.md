@@ -109,6 +109,19 @@ SOLAR 0.1.0 speaks solar/1, and answers to 5 APIs:
   solar call <method> '{}'  the whole envelope, as an agent sees it
 ```
 
+### Quoting on Windows PowerShell
+
+Windows PowerShell 5.1 removes double quotes before a native program sees them, so the
+obvious form arrives as `{message:hi}` and is refused. Two forms work:
+
+```powershell
+solar call solar.ping '{\"message\":\"hi\"}'
+'{"message":"hi"}' | solar call solar.ping -
+```
+
+A single `-` reads the parameters from standard input, which no shell can mangle. On
+`bash`, `zsh` and `cmd.exe` the plain form works as written elsewhere in this file.
+
 The exit code follows the status, so a script never has to read the JSON to know what
 happened: `0` for success, `2` for `INVALID_ARGUMENT`, `3` for `NOT_FOUND`, and the rest in
 section 12 of the contract.
@@ -201,7 +214,7 @@ docs/brand/                     the mark, its colours and its terminal form
 
 ```
 cargo build --release              the solar binary
-cargo test --workspace             163 tests
+cargo test --workspace             165 tests
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all -- --check
 cargo xtask manifest --check       the manifest is not stale

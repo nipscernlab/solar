@@ -67,7 +67,8 @@ enum Command {
     Call {
         /// The method, for example solar.ping.
         method: String,
-        /// The parameters, as one JSON object. Omit for none.
+        /// The parameters, as one JSON object. Omit for none, or pass - to read them
+        /// from standard input, which no shell can mangle.
         params: Option<String>,
     },
     /// Answer requests on standard input until it ends, one JSON message per line.
@@ -157,39 +158,73 @@ fn call(
     Ok(exit_code_of(&response))
 }
 
+/// What to do about a shell that will not leave the quotes alone.
+///
+/// Windows PowerShell 5.1 strips double quotes before a native program sees them, so the
+/// obvious form is the one that does not work there. The escaped form below was tried on
+/// the machine this was written on; `--%` was tried too and did not help.
+const SHELL_HINT: &str = r#"Pass the object as one argument. Windows PowerShell removes double quotes before the program sees them, so escape them there: '{\"message\":\"hi\"}'. A single - reads the parameters from standard input instead."#;
+
 /// Reads the parameters given on the command line, or the response that refuses them.
+///
+/// A single `-` means standard input, read to its end, which is the way out of a shell
+/// that mangles quotes.
 fn read_params(method: &str, params: Option<&str>) -> Result<Value, Box<Response>> {
-    let Some(text) = params else {
+    let Some(argument) = params else {
         return Ok(json!({}));
     };
-    serde_json::from_str::<Value>(text).map_err(|failure| {
-        let error = SolarError::new(
-            Reason::ParseError,
-            format!("The parameters given on the command line are not valid JSON: {failure}."),
+
+    let text = if argument == "-" {
+        let mut typed = String::new();
+        match std::io::Read::read_to_string(&mut std::io::stdin().lock(), &mut typed) {
+            Ok(_) => typed,
+            Err(failure) => {
+                return Err(refused(
+                    method,
+                    "-",
+                    &format!("standard input could not be read: {failure}"),
+                ));
+            }
+        }
+    } else {
+        argument.to_owned()
+    };
+
+    let trimmed = text.trim();
+    serde_json::from_str::<Value>(trimmed).map_err(|failure| {
+        refused(
+            method,
+            trimmed,
+            &format!("they are not valid JSON: {failure}"),
         )
-        .with_detail(
-            ErrorDetail::new(Status::InvalidArgument)
-                .field("params")
-                .expected("one JSON object, for example {\"message\":\"hi\"}")
-                .received(text)
-                .hint(
-                    "Quote the whole object as one argument. A shell that eats double \
-                     quotes needs them escaped, or single quotes around the object.",
-                ),
-        );
-        let meta = Meta::new(
-            Some(RequestId::Number(1.into())),
-            Some(method.to_owned()),
-            None,
-            clock::now_rfc3339_micros(),
-            0,
-        );
-        Box::new(Response::failure(
-            Some(RequestId::Number(1.into())),
-            error,
-            meta,
-        ))
     })
+}
+
+/// The response that refuses what arrived on the command line.
+fn refused(method: &str, received: &str, why: &str) -> Box<Response> {
+    let error = SolarError::new(
+        Reason::ParseError,
+        format!("The parameters given on the command line cannot be used: {why}."),
+    )
+    .with_detail(
+        ErrorDetail::new(Status::InvalidArgument)
+            .field("params")
+            .expected("one JSON object, for example {\"message\":\"hi\"}")
+            .received(received)
+            .hint(SHELL_HINT),
+    );
+    let meta = Meta::new(
+        Some(RequestId::Number(1.into())),
+        Some(method.to_owned()),
+        None,
+        clock::now_rfc3339_micros(),
+        0,
+    );
+    Box::new(Response::failure(
+        Some(RequestId::Number(1.into())),
+        error,
+        meta,
+    ))
 }
 
 /// Answers on standard input until it ends.

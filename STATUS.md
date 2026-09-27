@@ -38,7 +38,7 @@ suite before anyone touches it. This was verified end to end: a throwaway
 `build.run_target` was generated, passed every contract test, tripped the manifest drift
 check exactly as it should, and was removed.
 
-**163 tests**, of which the ones that matter most are the ones that police the template:
+**165 tests**, of which the ones that matter most are the ones that police the template:
 the naming rule, uniqueness, complete specifications, canonical and documented errors,
 parameter schemas that refuse unknown members, JSON Schema 2020-12, examples that validate
 against their own schemas and match reality, the manifest not being stale, the error

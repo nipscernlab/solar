@@ -133,6 +133,42 @@ fn parameters_that_are_not_json_are_still_answered_with_an_envelope() {
 }
 
 #[test]
+fn parameters_can_come_from_standard_input_when_a_shell_mangles_quotes() {
+    let mut child = Command::new(SOLAR)
+        .args(["call", "solar.ping", "-"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("the binary must run");
+    child
+        .stdin
+        .take()
+        .expect("stdin was piped")
+        .write_all(
+            b"{\"message\":\"from stdin\"}
+",
+        )
+        .expect("the call must accept input");
+    let output = child.wait_with_output().expect("the call must end");
+
+    assert_eq!(output.status.code(), Some(0));
+    let response = parse(&stdout_of(&output));
+    assert_eq!(response["result"]["data"]["echo"], "from stdin");
+}
+
+#[test]
+fn the_hint_for_mangled_parameters_names_a_form_that_works() {
+    let output = solar(&["call", "solar.ping", "{message:hi}"]);
+    assert_eq!(output.status.code(), Some(2));
+    let response = parse(&stdout_of(&output));
+    let hint = response["error"]["data"]["details"][0]["hint"]
+        .as_str()
+        .unwrap();
+    assert!(hint.contains("PowerShell"), "{hint}");
+    assert!(hint.contains("standard input"), "{hint}");
+}
+
+#[test]
 fn an_unknown_parameter_is_refused_with_the_name_that_was_meant() {
     let output = solar(&["call", "solar.ping", "{\"mesage\":\"hi\"}"]);
     assert_eq!(output.status.code(), Some(2));
