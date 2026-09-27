@@ -1042,6 +1042,80 @@ expression: manifest
       "version": "1.0.0"
     },
     {
+      "description": "`SOLAR_LOG` and `--log` decide what a session starts at, and until now that was the only way to decide at all: an interface that wanted to show more had to restart SOLAR, losing the session and everything queued in it. This changes the level while the session runs.\n\n**It touches only where diagnostics go, which is standard error.** Standard output carries protocol and nothing else, whatever the level, which is a promise of the contract and a test. Nothing about a response changes: the same call answers the same way at `off` and at `trace`.\n\nThe level applies to the whole process, not to one session, because there is one process per session and one standard error to write to. It stays until it is changed again or until the process ends; it does not write to the environment, and a new process reads `SOLAR_LOG` as it always did.\n\nSetting the level it already has is not an error: the call answers with `changed` false. A level that is not one of the six is refused with INVALID_VALUE, naming the six.",
+      "errors": [
+        {
+          "status": "INVALID_ARGUMENT",
+          "reason": "INVALID_VALUE"
+        }
+      ],
+      "examples": [
+        {
+          "name": "turn_it_off",
+          "description": "Asking for silence, whatever it was set to before",
+          "params": {
+            "level": "off"
+          },
+          "response": {
+            "changed": "$any",
+            "current": "off",
+            "previous": "$any"
+          },
+          "match": "exact"
+        }
+      ],
+      "idempotent": true,
+      "max_output_bytes": 8388608,
+      "name": "solar.set_log_level",
+      "output_schema": {
+        "description": "The output of `solar.set_log_level`.",
+        "properties": {
+          "changed": {
+            "description": "Whether this call changed anything. Setting the level it already had is not an\nerror; it simply answers with `false` here.",
+            "type": "boolean"
+          },
+          "current": {
+            "description": "The level in force now, which is what was asked for.",
+            "type": "string"
+          },
+          "previous": {
+            "description": "The level that was in force before this call.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "previous",
+          "current",
+          "changed"
+        ],
+        "title": "Output",
+        "type": "object"
+      },
+      "params_schema": {
+        "additionalProperties": false,
+        "description": "The parameters of `solar.set_log_level`.",
+        "properties": {
+          "level": {
+            "description": "The level to log at from now on: `off`, `error`, `warn`, `info`, `debug` or\n`trace`. Read in any case, and `none` and `0` are accepted for `off` and\n`warning` for `warn`, exactly as `SOLAR_LOG` reads them.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "level"
+        ],
+        "title": "Params",
+        "type": "object"
+      },
+      "side_effects": [
+        "none"
+      ],
+      "since": "0.3.0",
+      "stability": "experimental",
+      "summary": "Changes how much SOLAR says about itself, for the rest of the process",
+      "timeout_ms": 1000,
+      "version": "1.0.0"
+    },
+    {
       "description": "Three versions travel together and mean different things. `solar_version` is this build. `protocol` is the shape of the messages, and it only changes when an existing message changes in a way that breaks a caller. `manifest_schema_version` is the layout of the manifest, and a consumer must refuse a manifest whose major differs from the one it was written against.\n\n`build` says where the binary came from: the Git commit, whether the working tree was clean at the time, the compiler, the profile and the target triple. A field that could not be determined, because the build had no Git repository or no Git, is the string `unknown` rather than a plausible guess, and the call then warns with BUILD_METADATA_INCOMPLETE. Quote all of it in a bug report.",
       "errors": [],
       "examples": [

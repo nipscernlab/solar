@@ -575,3 +575,68 @@ fn asking_for_logs_puts_them_on_standard_error() {
         stderr_of(&output)
     );
 }
+
+#[test]
+fn the_log_level_changes_while_the_session_runs_and_stdout_never_moves() {
+    // The second thing ZENITH asked for: an interface that wants to show more has to be
+    // able to ask for it without restarting SOLAR and losing the session.
+    let input = concat!(
+        r#"{"jsonrpc":"2.0","id":1,"method":"solar.ping"}"#,
+        "\n",
+        r#"{"jsonrpc":"2.0","id":2,"method":"solar.set_log_level","params":{"level":"trace"}}"#,
+        "\n",
+        r#"{"jsonrpc":"2.0","id":3,"method":"solar.ping"}"#,
+        "\n",
+    );
+    let output = serve(input);
+    assert_eq!(output.status.code(), Some(0));
+
+    let stdout = stdout_of(&output);
+    let answers: Vec<Value> = stdout.lines().map(parse).collect();
+    assert_eq!(
+        answers.len(),
+        3,
+        "three requests, three responses: {stdout}"
+    );
+    assert_eq!(answers[1]["result"]["data"]["previous"], "off");
+    assert_eq!(answers[1]["result"]["data"]["current"], "trace");
+    assert_eq!(answers[1]["result"]["data"]["changed"], true);
+
+    // The first ping ran at the level the session started with, which is off, and the
+    // third ran at trace. Standard error therefore names the third call and not the first.
+    let diagnostics = stderr_of(&output);
+    assert!(
+        diagnostics.contains("\"id\":3") || diagnostics.contains("id\":3"),
+        "the call made after the change is logged: {diagnostics}"
+    );
+    assert!(
+        !diagnostics.contains("\"id\":1,\"method\":\"solar.ping\""),
+        "the call made before it is not: {diagnostics}"
+    );
+
+    // And the promise that matters more: nothing of this reached standard output.
+    for line in stdout.lines() {
+        let value: Value = parse(line);
+        assert!(
+            value.get("jsonrpc").is_some(),
+            "standard output carries protocol only: {line}"
+        );
+    }
+}
+
+#[test]
+fn asking_for_a_level_nobody_can_read_is_refused_and_names_the_six() {
+    let output = serve(concat!(
+        r#"{"jsonrpc":"2.0","id":1,"method":"solar.set_log_level","params":{"level":"loud"}}"#,
+        "\n",
+    ));
+    let response = parse(&stdout_of(&output));
+    assert_eq!(response["error"]["data"]["reason"], "INVALID_VALUE");
+    assert_eq!(response["error"]["data"]["status"], "INVALID_ARGUMENT");
+    let expected = response["error"]["data"]["details"][0]["expected"]
+        .as_str()
+        .unwrap_or_default();
+    for level in ["off", "error", "warn", "info", "debug", "trace"] {
+        assert!(expected.contains(level), "{level} is not in {expected:?}");
+    }
+}

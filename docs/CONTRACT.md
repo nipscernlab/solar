@@ -47,6 +47,11 @@ Two properties drive every decision in this document.
   controlled by the `SOLAR_LOG` environment variable, whose values are `off`, `error`,
   `warn`, `info`, `debug` and `trace`; the default is `off`. An API handler MUST NOT write
   to standard output.
+- **The level can change while a session runs.** `SOLAR_LOG` and `--log` decide what a
+  session starts at; `solar.set_log_level` changes it afterwards, for the rest of the
+  process, and reports what it was and what it is. It moves nothing but standard error:
+  the same call answers the same way at `off` and at `trace`, which is what makes it safe
+  for an interface to turn the diagnostics up while it is waiting for something.
 - **Ordering.** This version is strictly sequential: one request is read, dispatched and
   answered before the next is read. Responses therefore appear in request order.
 

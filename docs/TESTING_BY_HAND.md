@@ -245,6 +245,18 @@ Two things are worth trying here, because they are new in this version:
 
   One line comes back, holding an array of two responses, in the order you asked.
 
+- **The level of the diagnostics, changed while it runs.** Start the session again with
+  `SOLAR_LOG=trace ./target/release/solar serve --stdio`, which prints a line per message
+  on standard error, and then paste:
+
+  ```json
+  {"jsonrpc":"2.0","id":8,"method":"solar.set_log_level","params":{"level":"off"}}
+  ```
+
+  It answers `{"previous":"trace","current":"off","changed":true}`, and the chatter on
+  standard error stops while the responses on standard output carry on exactly as before.
+  Setting it back to `trace` starts it again.
+
 - **A cancellation.** `solar.cancel` answers about a call by its `id`:
 
   ```json

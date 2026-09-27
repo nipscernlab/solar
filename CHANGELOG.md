@@ -11,6 +11,20 @@ protocol is stated here in its own line.
 
 ### Added
 
+- **`capabilities` in the manifest**, at its root, which is the first of the three things
+  ZENITH asked SOLAR for: whether batches are accepted and how many elements one may hold,
+  whether cancellation exists and which method performs it, whether notifications are
+  accepted, and every limit a caller has to respect. Every number is the constant the code
+  enforces, compared with it by a test, so a limit cannot move without the manifest moving.
+  `schema_version` went to **2.1.0** and `solar.manifest` to **1.2.0**, both minor: a
+  consumer written against 2.0.0 reads this document by ignoring what it does not know.
+  Contract section 8.2.
+- **`solar.set_log_level`**, the second of the three: it takes a level, answers with the
+  previous one, the current one and whether anything changed, and moves nothing but where
+  the diagnostics go. `SOLAR_LOG` and `--log` still decide what a session starts at, so an
+  interface that wants to show more no longer has to restart SOLAR and lose the session.
+  The level is now an atomic read once from the environment rather than a value set once,
+  which is what makes it changeable. Contract section 2.
 - Twenty-seven decision records, 12 to 38, for everything that had been decided alone and
   written in `docs/OPEN_QUESTIONS.md` while the first three stages were built. The
   architect confirmed all of them on 27 September 2026, each as it was proposed. Record 18
@@ -20,6 +34,10 @@ protocol is stated here in its own line.
 
 ### Changed
 
+- `cargo xtask compat` reads the **major** of `schema_version` rather than the whole
+  string: record 22 says a consumer refuses a manifest whose major differs and reads one
+  whose minor moved, so a minor bump is additive. It had classified every change of that
+  version as breaking, which would have made adding a member to the document impossible.
 - `actions/checkout` to 7.0.1 and `actions/upload-artifact` to 7.0.1, both pinned by
   commit SHA with the version in a comment. Neither release changes anything this
   repository relies on: the workflows use no `pull_request_target` or `workflow_run`, and

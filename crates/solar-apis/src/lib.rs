@@ -30,6 +30,7 @@ pub mod solar_cancel;
 pub mod solar_describe;
 pub mod solar_manifest;
 pub mod solar_ping;
+pub mod solar_set_log_level;
 pub mod solar_version;
 pub mod system_info;
 
@@ -48,6 +49,7 @@ pub fn build_registry() -> Result<Registry, Vec<RegistryProblem>> {
         .register::<solar_describe::SolarDescribe>()
         .register::<solar_manifest::SolarManifest>()
         .register::<solar_ping::SolarPing>()
+        .register::<solar_set_log_level::SolarSetLogLevel>()
         .register::<solar_version::SolarVersion>()
         .register::<system_info::SystemInfo>()
         .build()
