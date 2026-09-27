@@ -3,12 +3,13 @@ source: crates/solar-cli/tests/snapshots_of_the_screen.rs
 assertion_line: 71
 expression: "screen(&[\"list\"])"
 ---
-SOLAR [version] speaks solar/1, and answers to 6 APIs:
+SOLAR [version] speaks solar/1, and answers to 7 APIs:
 
   solar.cancel        1.0.0    Asks the call with this id to stop, and says what that did
   solar.describe      1.0.0    Describes one API, with its schemas and its examples
   solar.manifest      1.2.0    Returns the manifest of every API this build answers to
   solar.ping          1.0.0    Answers immediately, to prove SOLAR is there
+  solar.set_log_level  1.0.0    Changes how much SOLAR says about itself, for the rest of the process
   solar.version       1.0.0    Reports the version, the protocol and the build metadata
   system.info         1.2.0    Reports the operating system, the processor and the process
 

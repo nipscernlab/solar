@@ -7,6 +7,7 @@
 use std::cell::RefCell;
 use std::io::Write;
 use std::sync::OnceLock;
+use std::sync::atomic::{AtomicU8, Ordering};
 
 use crate::clock;
 
@@ -39,6 +40,56 @@ impl Level {
             "debug" => Some(Level::Debug),
             "trace" => Some(Level::Trace),
             _ => None,
+        }
+    }
+
+    /// Every level, quietest first, which is the order they compare in.
+    pub const ALL: [Level; 6] = [
+        Level::Off,
+        Level::Error,
+        Level::Warn,
+        Level::Info,
+        Level::Debug,
+        Level::Trace,
+    ];
+
+    /// The number this level is stored as, so that it fits in an atomic.
+    #[must_use]
+    pub const fn code(self) -> u8 {
+        match self {
+            Level::Off => 0,
+            Level::Error => 1,
+            Level::Warn => 2,
+            Level::Info => 3,
+            Level::Debug => 4,
+            Level::Trace => 5,
+        }
+    }
+
+    /// The level a number stands for. Anything unknown reads as `Off`, which is the
+    /// setting that says nothing rather than the one that says everything.
+    #[must_use]
+    pub const fn from_code(code: u8) -> Level {
+        match code {
+            1 => Level::Error,
+            2 => Level::Warn,
+            3 => Level::Info,
+            4 => Level::Debug,
+            5 => Level::Trace,
+            _ => Level::Off,
+        }
+    }
+
+    /// The spelling `SOLAR_LOG` uses, in lower case, which is what an API reports.
+    #[must_use]
+    pub const fn as_lower(self) -> &'static str {
+        match self {
+            Level::Off => "off",
+            Level::Error => "error",
+            Level::Warn => "warn",
+            Level::Info => "info",
+            Level::Debug => "debug",
+            Level::Trace => "trace",
         }
     }
 
@@ -132,26 +183,56 @@ pub fn set_format(format: Format) {
     let _ = FORMAT.set(format);
 }
 
-static LEVEL: OnceLock<Level> = OnceLock::new();
-
-/// The level this process logs at, read once from `SOLAR_LOG`.
+/// The level this process logs at, as a number, so that it can change while SOLAR runs.
 ///
-/// An unreadable value is treated as `off`, because a logging setting is never a reason to
-/// refuse to serve a call.
+/// [`NOT_READ`] means the environment has not been consulted yet. It is read once, on the
+/// first call to [`level`], and after that this is simply the level: `solar.set_log_level`
+/// writes here, and every line written afterwards is filtered by what it wrote.
+static LEVEL: AtomicU8 = AtomicU8::new(NOT_READ);
+
+/// The value of [`LEVEL`] before anything has read `SOLAR_LOG`.
+const NOT_READ: u8 = u8::MAX;
+
+/// The level this process logs at, read once from `SOLAR_LOG` and changeable afterwards.
+///
+/// An unreadable value in the environment is treated as `off`, because a logging setting
+/// is never a reason to refuse to serve a call.
 #[must_use]
 pub fn level() -> Level {
-    *LEVEL.get_or_init(|| {
-        std::env::var("SOLAR_LOG")
-            .ok()
-            .and_then(|text| Level::parse(&text))
-            .unwrap_or(Level::Off)
-    })
+    let stored = LEVEL.load(Ordering::Relaxed);
+    if stored != NOT_READ {
+        return Level::from_code(stored);
+    }
+
+    let from_environment = std::env::var("SOLAR_LOG")
+        .ok()
+        .and_then(|text| Level::parse(&text))
+        .unwrap_or(Level::Off);
+
+    // Two threads reading at once must agree on what the environment said, and the loser
+    // takes the winner's answer rather than its own.
+    match LEVEL.compare_exchange(
+        NOT_READ,
+        from_environment.code(),
+        Ordering::SeqCst,
+        Ordering::SeqCst,
+    ) {
+        Ok(_) => from_environment,
+        Err(already) => Level::from_code(already),
+    }
 }
 
-/// Forces the level, ignoring `SOLAR_LOG`. Only the first call, wherever it comes from,
-/// has any effect.
-pub fn set_level(level: Level) {
-    let _ = LEVEL.set(level);
+/// Sets the level for the rest of this process, and gives back what it was.
+///
+/// `--log` and `SOLAR_LOG` decide what a session starts at; this is what changes it while
+/// the session runs, which is what `solar.set_log_level` does. It touches only where
+/// diagnostics go, standard error, and never standard output.
+pub fn set_level(level: Level) -> Level {
+    // Reading first settles the environment, so that the previous level a caller is told
+    // about is the one that was really in force rather than "not read yet".
+    let previous = self::level();
+    LEVEL.store(level.code(), Ordering::SeqCst);
+    previous
 }
 
 /// Writes one line to standard error when the level allows it.

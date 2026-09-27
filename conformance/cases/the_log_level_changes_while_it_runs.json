@@ -1,0 +1,15 @@
+{
+  "name": "the_log_level_changes_while_it_runs",
+  "description": "Changing the level reports what it was and what it is; nothing about a response changes",
+  "request": {"jsonrpc": "2.0", "id": 1, "method": "solar.set_log_level", "params": {"level": "off"}},
+  "response": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": {
+      "data": {"previous": "$any", "current": "off", "changed": "$any"},
+      "meta": "$any",
+      "warnings": []
+    }
+  },
+  "match": "subset"
+}
