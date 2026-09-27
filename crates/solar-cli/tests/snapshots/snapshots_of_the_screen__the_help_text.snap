@@ -11,6 +11,7 @@ Usage: solar [OPTIONS] <COMMAND>
 Commands:
   call      Run one call and print the whole response envelope
   serve     Answer requests on standard input until it ends, one JSON message per line
+  replay    Send the requests of a recording again and report where the answers differ
   list      List every API this build answers to
   describe  Describe one API, with its parameters, its errors and its examples
   manifest  Print the manifest

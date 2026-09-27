@@ -17,6 +17,7 @@
 //! - [`dispatch`] turns a request into a response and lets nothing end in silence.
 //! - [`error`], [`status`] and [`reason`] are how a failure is told.
 //! - [`manifest`] is everything this build can do, in one document.
+//! - [`recording`] writes a session down so that a bug report can be replayed.
 //!
 //! # Reading a call from start to finish
 //!
@@ -50,6 +51,7 @@ pub mod meta;
 pub mod params;
 pub mod protocol;
 pub mod reason;
+pub mod recording;
 pub mod registry;
 pub mod server;
 pub mod status;

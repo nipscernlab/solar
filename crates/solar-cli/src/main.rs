@@ -29,6 +29,7 @@ use solar_core::logging::{self, Level};
 use solar_core::meta::Meta;
 use solar_core::protocol::{RequestId, Response};
 use solar_core::reason::Reason;
+use solar_core::recording::Direction;
 use solar_core::status::Status;
 
 mod banner;
@@ -79,6 +80,16 @@ enum Command {
         /// Use standard input and output. The only transport in solar/1.
         #[arg(long)]
         stdio: bool,
+        /// Write every line in and every line out to this file, as NDJSON. Attach it to
+        /// a bug report; `solar replay` plays it back.
+        #[arg(long, value_name = "FILE")]
+        record: Option<std::path::PathBuf>,
+    },
+
+    /// Send the requests of a recording again and report where the answers differ.
+    Replay {
+        /// A file written by `solar serve --stdio --record`.
+        file: std::path::PathBuf,
     },
     /// List every API this build answers to.
     List,
@@ -116,7 +127,8 @@ fn main() -> ExitCode {
         Command::Call { method, params } => {
             call(&dispatcher, &method, params.as_deref(), cli.pretty)
         }
-        Command::Serve { stdio } => serve(&dispatcher, stdio),
+        Command::Serve { stdio, record } => serve(&dispatcher, stdio, record.as_deref()),
+        Command::Replay { file } => replay(&dispatcher, &file),
         Command::List => list(&dispatcher),
         Command::Describe { method } => describe(&dispatcher, &method),
         Command::Manifest { api } => manifest(&dispatcher, api.as_deref(), cli.pretty),
@@ -139,7 +151,12 @@ fn call(
     params: Option<&str>,
     pretty: bool,
 ) -> std::io::Result<ExitCode> {
-    let response = match read_params(method, params) {
+    // Every diagnostic line of this call names the call, as in a session.
+    let call = logging::Call {
+        request_id: Some(json!(1)),
+        method: Some(method.to_owned()),
+    };
+    let response = logging::during_call(call.clone(), || match read_params(method, params) {
         Ok(params) => {
             let request = json!({"jsonrpc": "2.0", "id": 1, "method": method, "params": params});
             let line = request.to_string();
@@ -148,15 +165,21 @@ fn call(
             dispatcher.handle_line(&line)
         }
         Err(response) => *response,
-    };
-    logging::trace(&format!("<-- {}", response.to_line()));
-    logging::info(&format!(
-        "{method} answered {} in {} us",
-        response
-            .status()
-            .map_or_else(|| "OK".to_owned(), |status| status.to_string()),
-        response_duration_us(&response)
-    ));
+    });
+    let duration_us = response_duration_us(&response);
+    logging::during_call(call, || {
+        logging::trace(&format!("<-- {}", response.to_line()));
+        logging::log_with(
+            logging::Level::Info,
+            &format!(
+                "{method} answered {}",
+                response
+                    .status()
+                    .map_or_else(|| "OK".to_owned(), |status| status.to_string())
+            ),
+            Some(duration_us),
+        );
+    });
 
     let text = if pretty {
         response.to_pretty()
@@ -239,7 +262,11 @@ fn refused(method: &str, received: &str, why: &str) -> Box<Response> {
 }
 
 /// Answers on standard input until it ends.
-fn serve(dispatcher: &Dispatcher, stdio: bool) -> std::io::Result<ExitCode> {
+fn serve(
+    dispatcher: &Dispatcher,
+    stdio: bool,
+    record: Option<&std::path::Path>,
+) -> std::io::Result<ExitCode> {
     if !stdio {
         eprintln!(
             "solar: serve needs --stdio, which is the only transport in solar/1. There is no \
@@ -253,8 +280,92 @@ fn serve(dispatcher: &Dispatcher, stdio: bool) -> std::io::Result<ExitCode> {
     if input.is_terminal() {
         logging::info("reading from a terminal: one JSON object per line, Ctrl+Z or Ctrl+D to end");
     }
-    solar_core::server::serve(input.lock(), output.lock(), dispatcher)?;
+    match record {
+        None => {
+            solar_core::server::serve(input.lock(), output.lock(), dispatcher)?;
+        }
+        Some(path) => {
+            let file = std::fs::File::create(path)?;
+            let mut writer = std::io::BufWriter::new(file);
+            logging::info(&format!("recording this session into {}", path.display()));
+            solar_core::server::serve_recording(
+                input.lock(),
+                output.lock(),
+                dispatcher,
+                Some(&mut writer),
+            )?;
+        }
+    }
     Ok(ExitCode::SUCCESS)
+}
+
+/// Sends the requests of a recording again and reports where the answers differ.
+///
+/// The volatile members of `meta`, which differ between any two runs, are replaced on
+/// both sides before comparing; everything else, including the whole of `data`, is
+/// compared as it stands.
+#[allow(
+    clippy::unnecessary_wraps,
+    reason = "every command of this binary returns the same type, so main can treat               them alike; this one happens to have nothing that can fail on output"
+)]
+fn replay(dispatcher: &Dispatcher, file: &std::path::Path) -> std::io::Result<ExitCode> {
+    let text = match std::fs::read_to_string(file) {
+        Ok(text) => text,
+        Err(failure) => {
+            eprintln!("solar: {} could not be read: {failure}", file.display());
+            return Ok(ExitCode::from(Status::NotFound.exit_code()));
+        }
+    };
+    let entries = match solar_core::recording::read(&text) {
+        Ok(entries) => entries,
+        Err(why) => {
+            eprintln!("solar: {} is not a recording: {why}", file.display());
+            return Ok(ExitCode::from(Status::InvalidArgument.exit_code()));
+        }
+    };
+
+    let mut sent = 0usize;
+    let mut differing = 0usize;
+    let mut expected: Option<String> = None;
+
+    for entry in entries {
+        match entry.direction {
+            Direction::In => {
+                let answered = dispatcher.handle_line(&entry.line).to_line();
+                expected = Some(answered);
+                sent += 1;
+            }
+            Direction::Out => {
+                let Some(answered) = expected.take() else {
+                    // A response with no request before it: the recording is not a
+                    // session, and replaying it would prove nothing.
+                    eprintln!("solar: the recording has an answer before any request");
+                    return Ok(ExitCode::from(Status::InvalidArgument.exit_code()));
+                };
+                let then = solar_core::recording::without_volatile_values(&entry.line);
+                let now = solar_core::recording::without_volatile_values(&answered);
+                if then != now {
+                    differing += 1;
+                    println!("differs, request {sent}:");
+                    println!("  recorded  {}", entry.line);
+                    println!("  now       {answered}");
+                }
+            }
+        }
+    }
+
+    println!(
+        "replay: {sent} request{} sent, {differing} answer{} differ{}",
+        if sent == 1 { "" } else { "s" },
+        if differing == 1 { "" } else { "s" },
+        if differing == 1 { "s" } else { "" }
+    );
+
+    if differing == 0 {
+        Ok(ExitCode::SUCCESS)
+    } else {
+        Ok(ExitCode::from(Status::FailedPrecondition.exit_code()))
+    }
 }
 
 /// The `duration_us` a response carries, for the log line about it.

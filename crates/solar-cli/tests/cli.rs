@@ -257,6 +257,149 @@ fn a_byte_order_mark_does_not_cost_a_caller_its_first_request() {
     );
 }
 
+/// Runs a session, recording it into a file, and gives back the path.
+fn serve_recording(input: &str, into: &std::path::Path) -> Output {
+    let mut child = Command::new(SOLAR)
+        .args(["serve", "--stdio", "--record"])
+        .arg(into)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("the binary must run");
+    child
+        .stdin
+        .take()
+        .expect("stdin was piped")
+        .write_all(input.as_bytes())
+        .expect("the session must accept input");
+    child.wait_with_output().expect("the session must end")
+}
+
+#[test]
+fn a_session_can_be_recorded_and_played_back() {
+    let directory = std::env::temp_dir().join(format!("solar-replay-{}", std::process::id()));
+    std::fs::create_dir_all(&directory).expect("a directory for the recording");
+    let recording = directory.join("session.ndjson");
+
+    let input = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"solar.ping\",\"params\":{\"message\":\"one\"}}\n\
+                 {\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"nope.nope\"}\n";
+    let served = serve_recording(input, &recording);
+    assert_eq!(served.status.code(), Some(0));
+    assert_eq!(stdout_of(&served).lines().count(), 2);
+
+    // Two requests and two responses, in the order they crossed.
+    let written = std::fs::read_to_string(&recording).expect("the recording exists");
+    let entries: Vec<Value> = written.lines().map(parse).collect();
+    assert_eq!(entries.len(), 4);
+    assert_eq!(entries[0]["direction"], "in");
+    assert_eq!(entries[1]["direction"], "out");
+    assert!(entries[0]["at"].as_str().unwrap().ends_with('Z'));
+
+    // Played back against the same build, nothing differs.
+    let replayed = Command::new(SOLAR)
+        .arg("replay")
+        .arg(&recording)
+        .output()
+        .expect("the binary must run");
+    assert_eq!(replayed.status.code(), Some(0), "{}", stdout_of(&replayed));
+    assert!(stdout_of(&replayed).contains("2 requests sent, 0 answers differ"));
+
+    // An answer that really changed is reported, and the exit code says so.
+    let tampered = directory.join("tampered.ndjson");
+    std::fs::write(
+        &tampered,
+        written.replace(r#"\"echo\":\"one\""#, r#"\"echo\":\"ONE\""#),
+    )
+    .expect("the tampered recording is written");
+    let caught = Command::new(SOLAR)
+        .arg("replay")
+        .arg(&tampered)
+        .output()
+        .expect("runs");
+    assert!(
+        stdout_of(&caught).contains("1 answer differs"),
+        "{}",
+        stdout_of(&caught)
+    );
+    assert_eq!(caught.status.code(), Some(5), "FAILED_PRECONDITION");
+
+    std::fs::remove_dir_all(&directory).ok();
+}
+
+#[test]
+fn replaying_something_that_is_not_a_recording_says_so() {
+    let directory = std::env::temp_dir().join(format!("solar-replay-bad-{}", std::process::id()));
+    std::fs::create_dir_all(&directory).expect("a directory");
+    let nonsense = directory.join("nonsense.ndjson");
+    std::fs::write(&nonsense, "this is not a recording\n").expect("written");
+
+    let output = Command::new(SOLAR)
+        .arg("replay")
+        .arg(&nonsense)
+        .output()
+        .expect("runs");
+    assert_eq!(output.status.code(), Some(2), "INVALID_ARGUMENT");
+    assert!(stderr_of(&output).contains("is not a recording"));
+
+    let missing = Command::new(SOLAR)
+        .arg("replay")
+        .arg(directory.join("nope"))
+        .output()
+        .expect("runs");
+    assert_eq!(missing.status.code(), Some(3), "NOT_FOUND");
+
+    std::fs::remove_dir_all(&directory).ok();
+}
+
+#[test]
+fn json_logs_are_one_object_per_line_naming_the_call() {
+    let output = Command::new(SOLAR)
+        .args(["call", "solar.ping"])
+        .env("SOLAR_LOG", "trace")
+        .env("SOLAR_LOG_FORMAT", "json")
+        .output()
+        .expect("the binary must run");
+    assert_eq!(output.status.code(), Some(0));
+
+    let diagnostics = stderr_of(&output);
+    assert!(!diagnostics.is_empty(), "trace level writes something");
+    for line in diagnostics.lines() {
+        let entry: Value = serde_json::from_str(line)
+            .unwrap_or_else(|failure| panic!("{line:?} is not one JSON object: {failure}"));
+        for member in [
+            "time",
+            "level",
+            "request_id",
+            "method",
+            "duration_us",
+            "message",
+        ] {
+            assert!(
+                entry.get(member).is_some(),
+                "{member} is missing from {line}"
+            );
+        }
+        assert_eq!(
+            entry["method"], "solar.ping",
+            "every line names the call it belongs to"
+        );
+        assert_eq!(entry["request_id"], 1);
+    }
+    // The line that reports the answer carries how long it took.
+    assert!(
+        diagnostics.lines().any(|line| {
+            serde_json::from_str::<Value>(line).is_ok_and(|entry| entry["duration_us"].is_number())
+        }),
+        "one line reports the duration: {diagnostics}"
+    );
+    assert_eq!(
+        stdout_of(&output).lines().count(),
+        1,
+        "logging never touches stdout"
+    );
+}
+
 #[test]
 fn a_session_with_no_transport_is_refused() {
     let output = solar(&["serve"]);

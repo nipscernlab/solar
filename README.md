@@ -168,6 +168,25 @@ exit 3
 
 Diagnostics go to standard error and only when asked: `SOLAR_LOG=trace`, or `--log trace`.
 Standard output carries protocol and nothing else, and a test enforces it.
+`SOLAR_LOG_FORMAT=json` turns each diagnostic line into one JSON object with the time, the
+level, the request id, the method, the duration and the message, for whatever is
+collecting them.
+
+### Recording a session, and playing it back
+
+A bug report that says "it answered wrongly" is a conversation; a bug report with a
+recording is a file somebody can replay.
+
+```bash
+solar serve --stdio --record /tmp/session.ndjson < /dev/null
+solar replay /tmp/session.ndjson
+```
+
+The recording is NDJSON, one entry per line, with every line in and every line out and the
+time each crossed. `solar replay` sends the requests again and compares the answers,
+ignoring what differs between any two runs: the volatile members of `meta`, and
+timestamps wherever they appear. It exits `0` when nothing differs and `5` when something
+does, and prints both answers side by side.
 
 ## Adding an API
 

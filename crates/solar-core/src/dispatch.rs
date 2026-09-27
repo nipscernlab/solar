@@ -56,11 +56,30 @@ pub fn install_panic_hook() {
                     )
                 }));
                 logging::error(&format!("a handler panicked: {info}"));
+                // The envelope carries the message and the location. A backtrace is bulky
+                // and only wanted when somebody is looking for it, which is what
+                // RUST_BACKTRACE says and what a level of debug or finer implies.
+                if wants_a_backtrace() {
+                    logging::error(&format!(
+                        "the backtrace of that panic:\n{}",
+                        std::backtrace::Backtrace::force_capture()
+                    ));
+                }
             } else {
                 previous(info);
             }
         }));
     });
+}
+
+/// Whether a panic should be followed by its backtrace on standard error.
+///
+/// Capturing one costs milliseconds and prints twenty lines, so it happens when somebody
+/// has asked: `RUST_BACKTRACE` set to anything but `0`, or a log level of debug or finer.
+fn wants_a_backtrace() -> bool {
+    let asked =
+        std::env::var("RUST_BACKTRACE").is_ok_and(|value| !value.is_empty() && value != "0");
+    asked || logging::level() >= logging::Level::Debug
 }
 
 /// What a panicking handler left behind.
@@ -235,7 +254,10 @@ fn elapsed_us(start: Instant) -> u64 {
 }
 
 /// The work of one call, ready to run on the worker thread.
-type Job = Box<dyn FnOnce() -> Result<Value, SolarError> + Send + 'static>;
+type Job = (
+    logging::Call,
+    Box<dyn FnOnce() -> Result<Value, SolarError> + Send + 'static>,
+);
 
 /// What comes back from the worker thread: what the handler returned, or how it panicked.
 type Outcome = Result<Result<Value, SolarError>, PanicRecord>;
@@ -261,15 +283,17 @@ impl Worker {
             .name("solar:worker".to_owned())
             .spawn(move || {
                 IN_DISPATCH.set(true);
-                while let Ok(job) = job_receiver.recv() {
+                while let Ok((call, job)) = job_receiver.recv() {
                     LAST_PANIC_LOCATION.set(None);
-                    let outcome = match catch_unwind(AssertUnwindSafe(job)) {
-                        Ok(result) => Ok(result),
-                        Err(payload) => Err(PanicRecord {
-                            message: panic_message(payload.as_ref()),
-                            location: LAST_PANIC_LOCATION.get(),
-                        }),
-                    };
+                    // Whatever the handler logs names the call it is serving.
+                    let outcome =
+                        logging::during_call(call, || match catch_unwind(AssertUnwindSafe(job)) {
+                            Ok(result) => Ok(result),
+                            Err(payload) => Err(PanicRecord {
+                                message: panic_message(payload.as_ref()),
+                                location: LAST_PANIC_LOCATION.get(),
+                            }),
+                        });
                     // A send that fails means the call was given up on. Its result is worth
                     // nothing to anyone, and neither is this thread.
                     if outcome_sender.send(outcome).is_err() {
@@ -304,13 +328,22 @@ fn run_with_budget(
     budget: Duration,
 ) -> Result<Value, SolarError> {
     let worker_ctx = Arc::clone(ctx);
-    let job: Job = Box::new(move || match worker_ctx.registry().get(name) {
-        Some(entry) => entry.invoke(&worker_ctx, params),
-        None => Err(SolarError::new(
-            Reason::InvariantBroken,
-            format!("{name} vanished from the registry while it was running."),
-        )),
-    });
+    let call = logging::Call {
+        request_id: ctx
+            .request_id()
+            .map(|id| serde_json::to_value(id).unwrap_or(Value::Null)),
+        method: Some(ctx.method().to_owned()),
+    };
+    let job: Job = (
+        call,
+        Box::new(move || match worker_ctx.registry().get(name) {
+            Some(entry) => entry.invoke(&worker_ctx, params),
+            None => Err(SolarError::new(
+                Reason::InvariantBroken,
+                format!("{name} vanished from the registry while it was running."),
+            )),
+        }),
+    );
 
     WORKER.with_borrow_mut(|slot| {
         if slot.is_none() {

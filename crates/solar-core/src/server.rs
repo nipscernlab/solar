@@ -14,6 +14,7 @@ use crate::logging;
 use crate::meta::Meta;
 use crate::protocol::{MAX_REQUEST_BYTES, Response};
 use crate::reason::Reason;
+use crate::recording::{Direction, Recorder};
 use crate::status::Status;
 
 /// What one attempt at reading a line produced.
@@ -133,10 +134,29 @@ fn not_utf8(position: usize) -> SolarError {
 /// Returns the first input or output failure. A failure here means the session itself broke,
 /// which the command line interface reports as exit code 70.
 pub fn serve<R: BufRead, W: Write>(
+    input: R,
+    output: W,
+    dispatcher: &Dispatcher,
+) -> std::io::Result<u64> {
+    serve_recording(input, output, dispatcher, None::<&mut std::io::Sink>)
+}
+
+/// The same session, written down as it happens.
+///
+/// Every line in and every line out is appended to `recorder`, with the time it crossed,
+/// which is what `solar serve --stdio --record` does and what `solar replay` reads.
+///
+/// # Errors
+///
+/// Returns the first input, output or recording failure. A session whose recording
+/// cannot be written stops, because half a recording is worse than none.
+pub fn serve_recording<R: BufRead, W: Write, F: Write>(
     mut input: R,
     mut output: W,
     dispatcher: &Dispatcher,
+    recorder: Option<&mut F>,
 ) -> std::io::Result<u64> {
+    let mut recorder = recorder.map(Recorder::new);
     let mut buffer: Vec<u8> = Vec::with_capacity(8 * 1024);
     let mut answered = 0u64;
 
@@ -149,7 +169,10 @@ pub fn serve<R: BufRead, W: Write>(
             Outcome::TooLong(bytes) => {
                 logging::warn(&format!("a request of {bytes} bytes was refused"));
                 let response = bare_failure(too_large(bytes));
-                write_response(&mut output, &response)?;
+                let written = write_response(&mut output, &response)?;
+                if let Some(recorder) = recorder.as_mut() {
+                    recorder.record(Direction::Out, &written)?;
+                }
                 answered += 1;
             }
             Outcome::Line => {
@@ -157,7 +180,10 @@ pub fn serve<R: BufRead, W: Write>(
                     Ok(text) => text.trim_end_matches('\r'),
                     Err(broken) => {
                         let response = bare_failure(not_utf8(broken.valid_up_to()));
-                        write_response(&mut output, &response)?;
+                        let written = write_response(&mut output, &response)?;
+                        if let Some(recorder) = recorder.as_mut() {
+                            recorder.record(Direction::Out, &written)?;
+                        }
                         answered += 1;
                         continue;
                     }
@@ -168,21 +194,28 @@ pub fn serve<R: BufRead, W: Write>(
                 }
 
                 logging::trace(&format!("--> {line}"));
+                if let Some(recorder) = recorder.as_mut() {
+                    recorder.record(Direction::In, line)?;
+                }
                 let response = dispatcher.handle_line(line);
-                write_response(&mut output, &response)?;
+                let written = write_response(&mut output, &response)?;
+                if let Some(recorder) = recorder.as_mut() {
+                    recorder.record(Direction::Out, &written)?;
+                }
                 answered += 1;
             }
         }
     }
 }
 
-/// Serialises one response and flushes it.
-fn write_response<W: Write>(output: &mut W, response: &Response) -> std::io::Result<()> {
+/// Serialises one response, writes it, flushes it, and gives back what it wrote.
+fn write_response<W: Write>(output: &mut W, response: &Response) -> std::io::Result<String> {
     let line = response.to_line();
     logging::trace(&format!("<-- {line}"));
     output.write_all(line.as_bytes())?;
     output.write_all(b"\n")?;
-    output.flush()
+    output.flush()?;
+    Ok(line)
 }
 
 /// A response to something that never became a request, so it has no id and no method.
