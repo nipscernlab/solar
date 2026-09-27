@@ -133,6 +133,25 @@ pub(crate) fn run(root: &Path, target: &Path) -> Result<(), String> {
     }
 }
 
+/// Where the release binary lands under a target directory.
+fn release_binary(target: &Path) -> std::path::PathBuf {
+    let name = if cfg!(windows) { "solar.exe" } else { "solar" };
+    target.join("release").join(name)
+}
+
+/// Whether the file is there and cannot be opened for writing, which on Windows means
+/// something is running it.
+///
+/// A file that is not there, or that opens for writing, is not the problem being looked
+/// for, and the caller falls back to the general message.
+fn binary_is_running(path: &Path) -> bool {
+    path.exists()
+        && std::fs::OpenOptions::new()
+            .write(true)
+            .open(path)
+            .is_err()
+}
+
 /// The release binary the blocks call.
 fn build_the_binary(root: &Path, target: &Path) -> Result<(), String> {
     let status = Command::new("cargo")
@@ -152,10 +171,21 @@ fn build_the_binary(root: &Path, target: &Path) -> Result<(), String> {
         .status()
         .map_err(|failure| format!("cargo could not be started: {failure}"))?;
     if status.success() {
-        Ok(())
-    } else {
-        Err("the release build failed, so the documentation cannot be run".to_owned())
+        return Ok(());
     }
+
+    // On Windows a running executable cannot be replaced, and the build says only
+    // "Access is denied" about a path. A session left open is the usual reason, and
+    // saying so is the difference between a one line fix and half an hour.
+    let binary = release_binary(target);
+    if cfg!(windows) && binary_is_running(&binary) {
+        return Err(format!(
+            "the release build could not replace {}, because it is running. Windows will              not let a running executable be replaced: end the `solar serve` session that              is holding it and run this again.",
+            binary.display()
+        ));
+    }
+
+    Err("the release build failed, so the documentation cannot be run".to_owned())
 }
 
 /// Every Markdown file the documentation lives in.

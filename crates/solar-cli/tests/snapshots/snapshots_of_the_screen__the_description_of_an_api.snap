@@ -1,5 +1,6 @@
 ---
 source: crates/solar-cli/tests/snapshots_of_the_screen.rs
+assertion_line: 76
 expression: "screen(&[\"describe\", \"solar.ping\"])"
 ---
 solar.ping 1.0.0
@@ -9,7 +10,7 @@ The cheapest call SOLAR has. It touches nothing, reads nothing and starts nothin
 
 Whatever is passed in `message` comes back in `echo`, untouched, which is how a caller tells one ping from another when several are in flight.
 
-stability experimental   since [version]   timeout 1000 ms   idempotent true   touches none
+stability experimental   since 0.1.0   timeout 1000 ms   idempotent true   touches none
 
 parameters
   message      string or null     optional  Anything the caller wants back, to tell one ping from another.

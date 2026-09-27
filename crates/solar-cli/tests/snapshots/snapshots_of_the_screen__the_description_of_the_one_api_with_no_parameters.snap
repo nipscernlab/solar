@@ -1,6 +1,6 @@
 ---
 source: crates/solar-cli/tests/snapshots_of_the_screen.rs
-assertion_line: 73
+assertion_line: 81
 expression: "screen(&[\"describe\", \"system.info\"])"
 ---
 system.info 1.2.0
@@ -12,7 +12,7 @@ The release is read where each system keeps it, and never by starting a program:
 
 Nothing personal is reported beyond what those paths necessarily contain: a home directory usually holds a user name, and that is the only such thing here. No environment variables, no network names, no serial numbers.
 
-stability experimental   since [version]   timeout 2000 ms   idempotent true   touches reads_filesystem
+stability experimental   since 0.1.0   timeout 2000 ms   idempotent true   touches reads_filesystem
 
 parameters
   none

@@ -4,23 +4,36 @@
 //! whether anything fails. A mutant that survives is a line nothing checks, which is a
 //! missing test rather than a missing execution.
 //!
-//! The full run takes a long time, which is why it is a weekly job and a command rather
-//! than a step of every push. `--in-diff` narrows it to what a branch changed, which is
-//! short enough to run before opening a pull request.
+//! **This runs in continuous integration and not on a laptop.** Decided on 27 September
+//! 2026, after a local run filled the disk: `cargo mutants` copies the whole source tree
+//! once per job and builds each copy, which was 14.7 GB of temporary directories for
+//! eight jobs, on top of a `target/` that had grown to 23.8 GB. The weekly job on a
+//! runner does the same work on a machine that is thrown away afterwards, so nothing is
+//! lost by refusing to do it here.
+//!
+//! The refusal is a message rather than a missing command, and `SOLAR_MUTANTS_ANYWAY=1`
+//! lifts it for somebody who has the disk and means it.
 
 use std::path::Path;
 use std::process::Command;
 
-/// How many surviving mutants the shipped crates are allowed, measured on 27 September
-/// 2026 and never raised.
+/// How many surviving mutants the shipped crates are allowed.
 ///
-/// A weekly job that is always red is a job nobody reads, and a full run today leaves 98
-/// survivors out of 538 mutants: real gaps, but a backlog rather than a regression. The
-/// ceiling makes the job green while the backlog shrinks and red the moment somebody adds
-/// to it, which is the bargain the coverage floor makes as well.
+/// **This number is inherited, not measured, and the next full run replaces it.** It came
+/// from a run with two faults: the mutants were judged by the mutated crate's own tests
+/// rather than by the workspace suite, and a shared target directory let one mutant be
+/// judged by an artefact built from another. Both are fixed, and a partial run under the
+/// corrected configuration left five survivors in the first 276 mutants rather than the
+/// forty-odd the old configuration would have reported for the same files, so the real
+/// number is far below this.
 ///
-/// Every survivor is a line that can be wrong without a test failing. Lower this number
-/// whenever some are killed; never raise it.
+/// It stays at 98 until a complete run says otherwise, because a ceiling set by guessing
+/// is a check that fails for the wrong reason. The weekly job produces that run; lower
+/// this to what it reports, and never raise it.
+///
+/// Some survivors cannot be killed on every system: a mutant inside a `cfg` block for
+/// another operating system is never compiled here, so nothing can notice it. Those are
+/// judged on the system they belong to, which is why the weekly job runs on Linux.
 pub(crate) const CEILING: usize = 98;
 
 /// Runs the mutation suite.
@@ -29,6 +42,13 @@ pub(crate) const CEILING: usize = 98;
 ///
 /// Returns that mutants survived, or why the run could not be made.
 pub(crate) fn run(root: &Path, arguments: &[&str]) -> Result<(), String> {
+    if !runs_here() {
+        return Err(
+            "mutation testing runs in continuous integration, not on a laptop. cargo              mutants copies the whole source tree once per job and builds every copy,              which filled this disk on 27 September 2026: 14.7 GB of temporary trees on              top of a target directory of 23.8 GB. The weekly job does the same work on              a runner that is thrown away afterwards, and the report is an artefact of              it. Set SOLAR_MUTANTS_ANYWAY=1 if you have the disk and mean it."
+                .to_owned(),
+        );
+    }
+
     let output = root.join("target").join("mutants");
     let mut command = Command::new("cargo");
     command
@@ -125,4 +145,13 @@ fn read_outcomes(output: &Path) -> Result<Summary, String> {
         }
     }
     Ok(summary)
+}
+
+/// Whether this machine is one where the mutation suite may run.
+///
+/// Continuous integration sets `CI`, which every runner does and no laptop does by
+/// accident. `SOLAR_MUTANTS_ANYWAY` is the deliberate override.
+fn runs_here() -> bool {
+    let set = |name: &str| std::env::var(name).is_ok_and(|value| !value.is_empty());
+    set("CI") || set("SOLAR_MUTANTS_ANYWAY")
 }

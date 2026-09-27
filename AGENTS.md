@@ -93,7 +93,7 @@ for the loop between commits; it is not the gate.
 | Every shell block in the documentation really runs | `cargo xtask doc-run` |
 | The release binary embeds no local path | `cargo xtask leak-check` |
 | Coverage of the shipped crates | `cargo xtask coverage`, floor in the source |
-| Lines nothing checks | `cargo xtask mutants`, ceiling in the source |
+| Lines nothing checks | `cargo xtask mutants`, **in CI only**, ceiling in the source |
 | What one call allocates | `crates/solar-apis/tests/heap.rs`, ceiling in the source |
 
 ## Where the truth lives
@@ -118,6 +118,10 @@ for the loop between commits; it is not the gate.
 - Never exclude code from mutation testing to make the number look better. Kill the
   mutant with a test of observable behaviour, or explain the equivalence where
   `cargo-mutants` can see it.
+- Never run the mutation suite on a laptop. It copies the whole source tree once per job
+  and builds every copy, which filled this machine's disk on 27 September 2026. The
+  weekly job runs it on a runner that is thrown away, and keeps the report as an
+  artefact.
 - Never add a runtime dependency without measuring its effect on binary size and startup
   time, in the pull request. Development dependencies are free.
 - Never change the shape of an existing response without the version bump `cargo xtask

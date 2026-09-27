@@ -117,11 +117,67 @@ pub(crate) fn run(root: &Path, fast: bool) -> Result<(), String> {
         outcomes.push(step("coverage", || crate::coverage::run(root, false)));
     }
 
-    report(&outcomes, fast)
+    // The nested trees are scaffolding, not a cache worth keeping: `target/ci` alone was
+    // 8.6 GB on 27 September 2026, which is what made this repository fill a laptop.
+    // Rebuilding them costs a minute; keeping them costs gigabytes between runs.
+    let swept = sweep(root);
+
+    report(&outcomes, fast, swept)
+}
+
+/// Removes the target directories the nested commands built in, and says how much that was.
+///
+/// A failure to remove one is not a failure of the pipeline: the checks have already run
+/// and said what they found, and a directory that could not be deleted is a nuisance
+/// rather than a result.
+fn sweep(root: &Path) -> u64 {
+    let mut freed = 0;
+    let main = crate::flags::target_dir(root);
+    for directory in [
+        nested_target(root),
+        // `cargo llvm-cov` builds its own instrumented tree beside the others.
+        main.join("llvm-cov-target"),
+    ] {
+        if !directory.exists() {
+            continue;
+        }
+        freed += size_of(&directory);
+        if let Err(failure) = std::fs::remove_dir_all(&directory) {
+            eprintln!(
+                "ci: {} could not be removed: {failure}. The checks all ran; this is only                  disk.",
+                directory.display()
+            );
+        }
+    }
+    freed
+}
+
+/// A size in bytes, as a number of gibibytes to print.
+#[allow(
+    clippy::cast_precision_loss,
+    reason = "printed to one decimal of a gibibyte, so the digits an f64 cannot hold are               a thousand times smaller than the last one shown"
+)]
+fn gibibytes(bytes: u64) -> f64 {
+    bytes as f64 / 1024.0 / 1024.0 / 1024.0
+}
+
+/// How many bytes a directory holds, counting every file under it.
+fn size_of(directory: &Path) -> u64 {
+    let Ok(entries) = std::fs::read_dir(directory) else {
+        return 0;
+    };
+    entries
+        .flatten()
+        .map(|entry| match entry.file_type() {
+            Ok(kind) if kind.is_dir() => size_of(&entry.path()),
+            Ok(_) => entry.metadata().map(|data| data.len()).unwrap_or_default(),
+            Err(_) => 0,
+        })
+        .sum()
 }
 
 /// Prints the summary and turns it into the result of the task.
-fn report(outcomes: &[Outcome], fast: bool) -> Result<(), String> {
+fn report(outcomes: &[Outcome], fast: bool, swept: u64) -> Result<(), String> {
     let total: f64 = outcomes.iter().map(|outcome| outcome.seconds).sum();
     println!();
     println!("  step                        result    seconds");
@@ -142,6 +198,14 @@ fn report(outcomes: &[Outcome], fast: bool) -> Result<(), String> {
         .map(|outcome| outcome.name)
         .collect();
     println!();
+
+    if swept > 0 {
+        println!(
+            "ci: removed the nested build trees, {:.1} GB. They are scaffolding, not a              cache: rebuilding them costs a minute and keeping them costs the disk.",
+            gibibytes(swept)
+        );
+        println!();
+    }
 
     if fast {
         println!("ci: SKIPPED the documentation runner and the coverage step, because --fast.");

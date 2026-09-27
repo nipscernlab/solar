@@ -234,11 +234,50 @@ mod tests {
 
     #[test]
     fn every_spelling_of_a_level_is_read() {
-        assert_eq!(Level::parse("off"), Some(Level::Off));
-        assert_eq!(Level::parse("  TRACE "), Some(Level::Trace));
-        assert_eq!(Level::parse("Warning"), Some(Level::Warn));
-        assert_eq!(Level::parse("verbose"), None);
-        assert_eq!(Level::parse(""), None);
+        // Every spelling, because each one is a promise to whoever sets SOLAR_LOG, and a
+        // missing arm is a level that silently reads as off.
+        for (spelling, level) in [
+            ("off", Level::Off),
+            ("none", Level::Off),
+            ("0", Level::Off),
+            ("error", Level::Error),
+            ("warn", Level::Warn),
+            ("warning", Level::Warn),
+            ("info", Level::Info),
+            ("debug", Level::Debug),
+            ("trace", Level::Trace),
+        ] {
+            assert_eq!(Level::parse(spelling), Some(level), "{spelling}");
+            assert_eq!(
+                Level::parse(&format!("  {} ", spelling.to_ascii_uppercase())),
+                Some(level),
+                "{spelling}, in any case and with space around it"
+            );
+        }
+
+        for nonsense in ["verbose", "", "  ", "1", "offf", "warnings"] {
+            assert_eq!(Level::parse(nonsense), None, "{nonsense:?}");
+        }
+    }
+
+    #[test]
+    fn every_spelling_of_a_format_is_read() {
+        for (spelling, format) in [
+            ("human", Format::Human),
+            ("text", Format::Human),
+            ("json", Format::Json),
+        ] {
+            assert_eq!(Format::parse(spelling), Some(format), "{spelling}");
+            assert_eq!(
+                Format::parse(&format!(" {} ", spelling.to_ascii_uppercase())),
+                Some(format),
+                "{spelling}, in any case and with space around it"
+            );
+        }
+
+        for nonsense in ["ndjson", "", "plain", "j son"] {
+            assert_eq!(Format::parse(nonsense), None, "{nonsense:?}");
+        }
     }
 
     #[test]

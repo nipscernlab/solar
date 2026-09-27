@@ -105,8 +105,6 @@ crates.io, and anything with a RustSec advisory against it.
 ```bash no-run
 # no-run: each of these takes minutes to hours
 cargo xtask coverage --report              # lcov and HTML in target/coverage
-cargo xtask mutants                        # the full mutation suite
-cargo xtask mutants -- --in-diff origin/main   # only what this branch changed
 cargo fuzz run envelope -- -max_total_time=60  # needs nightly; see fuzz/
 cargo xtask load                           # 10 000 requests through a real session
 cargo xtask load --soak                    # a million, to see whether memory grows
@@ -115,6 +113,17 @@ cargo xtask load --soak                    # a million, to see whether memory gr
 Coverage says which lines ran. Mutation says whether anything checked what they did: it
 changes a line, runs the whole workspace suite, and reports the lines where nothing
 failed. A surviving mutant in `solar-core` is a missing test.
+
+**Mutation testing runs in CI and not here.** `cargo mutants` copies the whole source
+tree once per job and builds every copy, which was 14.7 GB of temporary directories on
+the machine this was written on. The weekly job does the same work on a runner that is
+thrown away afterwards and keeps the report as an artefact, so nothing is lost.
+`cargo xtask mutants` says so and refuses; `SOLAR_MUTANTS_ANYWAY=1 cargo xtask mutants`
+lifts the refusal for somebody who has the disk and means it.
+
+**A build here stays under 10 GB.** The dev and test profiles carry line tables and no
+more, dependencies carry no debug information, and `cargo xtask ci` removes the trees it
+built in when it finishes. `STATUS.md` records what each of those was worth.
 
 `cargo xtask load` needs a release build to measure, and says so if there is none. What it
 reports is the latency a client sees, not the time dispatch spends, because that is the

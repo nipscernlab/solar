@@ -255,28 +255,28 @@ client does. The driver's own cost is inside every figure.
 
 | Run | Throughput | p50 | p99 | Max | Resident memory |
 | --- | ---------- | --- | --- | --- | ---------------- |
-| 10 000 pings | **28 814 per second** | 32 µs | 51 µs | 348 µs | 4 412 KiB to 4 860 KiB |
-| 10 000 calls, every other one an error | **34 773 per second** | 27 µs | 44 µs | 259 µs | 4 408 KiB to 4 884 KiB |
-| 1 000 000 pings, `cargo xtask load --soak` | **29 112 per second** | 31 µs | 59 µs | 4 246 µs | 4 404 KiB to 4 856 KiB, ending at 4 812 KiB |
+| 10 000 pings | **15 095 per second** | 61 µs | 121 µs | 713 µs | 4 380 KiB to 4 860 KiB |
+| 10 000 calls, every other one an error | **19 253 per second** | 47 µs | 100 µs | 354 µs | 4 384 KiB to 4 888 KiB |
+| 1 000 000 pings, `cargo xtask load --soak` | **13 418 per second** | 69 µs | 117 µs | 64 597 µs | 4 388 KiB to 4 872 KiB, ending at 4 832 KiB |
 
 **Memory does not grow with the calls a session answers.** A million requests left the
 resident set where ten thousand left it, within half a mebibyte of where it started, which
-is what the bounds of sections 9.6 and 9.7 of the contract are for. Errors are answered
-faster than successes because an error is a smaller response and stops earlier.
+is what the limits of sections 8.3, 9.6, 9.7 and 10 of the contract are for. Errors are
+answered faster than successes because an error is a smaller response and stops earlier.
+
+**Cancellation cost half of that throughput.** The same 10 000 pings ran at 28 814 per
+second with a p50 of 32 µs before the session read ahead on a thread of its own. Every
+message now crosses a thread boundary, which is about 29 µs per call, and it is what buys
+a session that answers `solar.cancel` while a call is running. `STATUS.md` has the
+measurement that says where the time went, including the part that is not the thread.
 
 One `solar.ping` allocates **51 blocks and 5 278 bytes**, measured with `dhat` in
 `crates/solar-apis/tests/heap.rs`, which holds a ceiling so that a change that allocates
 more has to say why.
 
-One measurement changed the design. Dispatch runs every handler on a worker thread, so
-that a panic cannot take the session down and a budget can be enforced. Starting a thread
-for each call cost about 70 µs of the 77 µs a ping took, which was more than everything
-else put together. One worker thread is now started per dispatching thread and reused, and
-only a call that runs past its budget costs a new one, because the thread it abandoned can
-never be trusted again. The same ping now costs 7.59 µs.
-
-There is no async runtime in this stage. The session loop is synchronous and answers one
-request before reading the next, so responses come back in request order.
+There is no async runtime. A session reads on one thread and runs calls on another, and
+the calls run one at a time in the order they arrived, so a client that never cancels sees
+its responses in the order of its requests.
 
 ## Layout
 

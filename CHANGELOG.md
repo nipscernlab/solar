@@ -62,6 +62,16 @@ unless it asks for one, the protocol stays `solar/1`, and no API changed shape.
   `Context::elapsed`, `Context::remaining` and `Context::session`, the registry a built
   dispatcher hands out, and the rule for printing a backtrace, which was split from the
   environment it reads so that every combination could be tested.
+- The dev and test profiles carry `debug = "line-tables-only"` and dependencies carry no
+  debug information at all, which took `target/debug` from 11.94 GB to 1.33 GB. A panic
+  still names the file and the line; a debugger that needs variables gets
+  `RUSTFLAGS="-Cdebuginfo=2"` for the one build that needs it.
+- `cargo xtask ci` removes the nested trees it built in, `target/ci` and
+  `target/llvm-cov-target`, and says how much that freed. They were 10.4 GB between runs.
+- `cargo xtask mutants` refuses to run outside continuous integration, where the weekly
+  job already runs it, because `cargo mutants` copies the source tree once per job and
+  builds every copy: 14.7 GB of temporary trees on this machine. `SOLAR_MUTANTS_ANYWAY=1`
+  lifts the refusal.
 - `cargo xtask changelog [<base>]`, and the same step in CI: a change under `crates/`
   comes with an entry here. It is the part a machine can check of the fixed rule that
   code and documentation move together, which `AGENTS.md` states and the pull request

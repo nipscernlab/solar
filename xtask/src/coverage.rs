@@ -20,6 +20,12 @@ use std::process::Command;
 ///
 /// It only ever goes up. Raising it is a separate change, made when a measurement has
 /// stayed comfortably above the current floor for a while.
+///
+/// Stage two measured 91.33% and set the floor at 91. Stage three measured **93.75%**,
+/// and the floor stays at 91 on purpose: one measurement above it is not the same as a
+/// habit of staying above it, and a floor raised on a single run is a floor that fails
+/// the first time somebody adds a hard-to-test branch for a good reason. Raise it to 93
+/// once a few stages have run above it.
 pub(crate) const FLOOR: u32 = 91;
 
 /// The crates that ship, and therefore the crates that are measured.

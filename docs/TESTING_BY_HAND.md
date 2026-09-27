@@ -79,9 +79,9 @@ The first build downloads the dependencies and takes a few minutes; later ones t
 seconds. `--locked` means the exact dependency versions recorded in the repository, so
 what you build is what CI built.
 
-**What you should see:** a last line like `Finished `release` profile [optimized +
-debuginfo] target(s) in 1m 04s`. Warnings from dependencies are normal. A line beginning
-`error` is not: that is a finding.
+**What you should see:** a last line beginning with `Finished` that names the release
+profile and how long it took, something like a minute. Warnings from dependencies are
+normal. A line beginning `error` is not: that is a finding.
 
 The binary is now at `./target/release/solar`.
 

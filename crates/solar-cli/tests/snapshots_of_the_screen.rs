@@ -37,9 +37,17 @@ fn screen(arguments: &[&str]) -> String {
     let mut redacted = String::new();
     for line in text.lines() {
         // clap prints the file name of the binary, which carries .exe on Windows only.
+        //
+        // `since` is left alone: it says which SOLAR an API first appeared in, which is
+        // a fact about the API and not something that differs between two machines.
+        // Redacting it would move every snapshot on a version bump and would hide the
+        // one number in that line a reader is there for.
+        let since = format!("since {version}");
         let line = line
             .replace("solar.exe", "solar")
-            .replace(version, "[version]");
+            .replace(&since, "\u{1}")
+            .replace(version, "[version]")
+            .replace('\u{1}', &since);
         let label = line.split_whitespace().next().unwrap_or_default();
         if PER_MACHINE.contains(&label) {
             // Replace the value and keep the column, because the column is the layout.

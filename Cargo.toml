@@ -69,3 +69,22 @@ opt-level = 3
 incremental = false
 # File and line survive into a crash report; full debug info would triple the binary.
 debug = "line-tables-only"
+
+# A debug build carries file and line, and nothing more.
+#
+# Full debug info is what made `target/` grow to 23.8 GB on a laptop: the dev and test
+# profiles default to `debug = 2`, and every dependency carries its own copy. A panic
+# still names the file and the line it happened in, which is what a backtrace is read
+# for; a debugger that needs variables can be given `RUSTFLAGS="-Cdebuginfo=2"` for the
+# one build that needs it. Measured on 27 September 2026: see `STATUS.md`.
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false
+
+[profile.test]
+debug = "line-tables-only"
+
+[profile.test.package."*"]
+debug = false
