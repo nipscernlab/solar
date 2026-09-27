@@ -67,7 +67,7 @@ jobs:
       - name: Install the checkers and the test runner
         uses: taiki-e/install-action@4cef1412cce204788f482e778a0b9187f9626a29 # v2.87.21
         with:
-          tool: typos-cli,taplo-cli,cargo-nextest
+          tool: typos-cli,taplo-cli,cargo-nextest,cargo-deny
 
       - name: Formatting
         run: cargo fmt --all -- --check
@@ -117,6 +117,12 @@ jobs:
       # The binary that would be shipped from this commit names no user and no machine.
       - name: The release binary embeds no local path
         run: cargo run --package xtask --locked --quiet -- leak-check
+
+      # Advisories, licences, sources and duplicates. One system is enough for a check
+      # about the dependency tree, which is the same everywhere.
+      - name: Supply chain
+        if: runner.os == 'Linux'
+        run: cargo deny check
 
   coverage:
     name: coverage

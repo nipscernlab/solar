@@ -1,0 +1,45 @@
+# Weekly, on Monday, before the working day in Brazil and in Geneva.
+#
+# A dependency of SOLAR is a decision, so these arrive as pull requests that a person
+# reads: CONTRIBUTING.md asks a runtime dependency to justify itself with its measured
+# effect on binary size and startup time, and Dependabot's pull requests are no exception.
+
+version: 2
+
+updates:
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "build(deps)"
+      prefix-development: "build(deps-dev)"
+    labels: [dependencies]
+
+  # The fuzzing targets keep a lockfile of their own, outside the workspace.
+  - package-ecosystem: cargo
+    directory: /fuzz
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 2
+    commit-message:
+      prefix: "build(deps-dev)"
+    labels: [dependencies]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Etc/UTC
+    commit-message:
+      prefix: "ci(deps)"
+    labels: [dependencies]

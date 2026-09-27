@@ -1,0 +1,87 @@
+# What is allowed into the dependency tree, and on what terms.
+#
+# `cargo deny check` runs in CI and in `cargo xtask ci`. It answers four questions: is
+# anything in the tree known to be vulnerable, is every licence one this laboratory may
+# ship, is anything coming from somewhere other than crates.io, and is the same crate
+# being built twice at different versions.
+
+[graph]
+# Every system the workspace supports. A dependency that only exists for a target not in
+# this list is not part of the answer.
+targets = [
+  "x86_64-pc-windows-msvc",
+  "x86_64-unknown-linux-gnu",
+  "aarch64-unknown-linux-gnu",
+  "x86_64-apple-darwin",
+  "aarch64-apple-darwin",
+]
+all-features = false
+
+[advisories]
+# RustSec. An advisory against something SOLAR ships fails the build; there is no
+# ignore list, and adding one is a decision to be argued in its pull request.
+db-urls = ["https://github.com/RustSec/advisory-db"]
+ignore = []
+yanked = "deny"
+unmaintained = "workspace"
+
+[licenses]
+# Every licence below was found in the tree, not copied from a template. All of them are
+# permissive: they allow use, modification and redistribution, including inside a work
+# released under the NIPS-CERN Licence, and none of them demands that the combined work
+# be released under itself, which is the condition that would conflict.
+#
+# `cargo deny list` prints which crate brings which. A licence that is not here fails the
+# build, and adding one is a decision about what the laboratory may ship.
+allow = [
+  # SOLAR's own crates. The base licence of the laboratory, in LICENSE.
+  "LicenseRef-NIPS-CERN-1.1",
+  "Apache-2.0",
+  "BSD-3-Clause",
+  "MIT",
+  "Unicode-3.0",
+]
+confidence-threshold = 0.9
+# A licence allowed but never met is either dead weight or a dependency that left, and
+# either way the list should say what is really there.
+unused-allowed-license = "warn"
+
+# SOLAR's own crates carry a licence identifier that no database knows, so the check is
+# told about it here rather than being allowed to guess.
+[[licenses.clarify]]
+crate = "solar-core"
+expression = "LicenseRef-NIPS-CERN-1.1"
+license-files = []
+
+[[licenses.clarify]]
+crate = "solar-apis"
+expression = "LicenseRef-NIPS-CERN-1.1"
+license-files = []
+
+[[licenses.clarify]]
+crate = "solar-cli"
+expression = "LicenseRef-NIPS-CERN-1.1"
+license-files = []
+
+[[licenses.clarify]]
+crate = "xtask"
+expression = "LicenseRef-NIPS-CERN-1.1"
+license-files = []
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+# A dependency that is not used by any target of any crate is dead weight.
+workspace-default-features = "allow"
+external-default-features = "allow"
+deny = []
+skip = []
+skip-tree = []
+
+[sources]
+# crates.io and nothing else. A git dependency is a moving target that no lockfile
+# pins in a way a release can rely on.
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []
