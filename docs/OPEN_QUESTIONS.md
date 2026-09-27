@@ -345,3 +345,17 @@ workspace-wide, enforces mechanically. A workspace-level allow would silence a l
 everywhere, including the future places where it is right; a local allow with a mandatory
 reason keeps the lint alive and the exception argued. The letter of the brief bends, its
 intent, that nothing is silenced without a written reason, is enforced by machine.
+
+### `cargo xtask ci` builds its nested commands in a target directory of their own
+
+The one command is itself `target/debug/xtask.exe`. A nested `cargo test --workspace`
+relinks that very file, and Windows refuses to replace a running executable: *failed to
+remove file ... Access is denied*. The same happens to the documentation blocks that call
+`cargo xtask manifest`.
+
+Every nested build therefore uses `target/ci`, passed explicitly rather than through the
+environment, since `std::env::set_var` is `unsafe` in edition 2024 and unsafe code is
+denied. The cost is one extra build tree, cached like any other; the first run of
+`xtask ci` after a change to the sources is slower than the second. CI itself runs the
+cargo commands directly, where nothing is running from the tree, so it keeps the default
+directory.

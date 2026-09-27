@@ -14,6 +14,15 @@ pub(crate) const HOME_STANDIN: &str = "/users/anon";
 /// The neutral spelling the repository root becomes.
 pub(crate) const ROOT_STANDIN: &str = "/solar";
 
+/// Where cargo puts what it builds, honouring `CARGO_TARGET_DIR`.
+///
+/// Every build xtask makes reads this, so that a task which sets the variable, as
+/// `xtask ci` must, still finds the artefacts it asked for.
+pub(crate) fn target_dir(root: &Path) -> std::path::PathBuf {
+    std::env::var_os("CARGO_TARGET_DIR")
+        .map_or_else(|| root.join("target"), std::path::PathBuf::from)
+}
+
 /// The home directory of whoever is building, in the spelling paths really use.
 pub(crate) fn home_directory() -> Option<String> {
     std::env::var("USERPROFILE")

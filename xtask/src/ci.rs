@@ -12,6 +12,20 @@ use std::path::Path;
 use std::process::Command;
 use std::time::Instant;
 
+/// Where the nested cargo commands build.
+///
+/// `xtask ci` is itself `target/debug/xtask.exe`, and a nested `cargo test --workspace`
+/// wants to relink that very file, which Windows refuses while it is running: "failed to
+/// remove file ... Access is denied". A target directory of their own keeps the nested
+/// builds away from the binary that is running them. It costs one extra build tree, which
+/// is then cached like any other.
+const NESTED_TARGET: &str = "ci";
+
+/// The target directory the nested commands use.
+fn nested_target(root: &Path) -> std::path::PathBuf {
+    crate::flags::target_dir(root).join(NESTED_TARGET)
+}
+
 /// What one step did.
 struct Outcome {
     name: &'static str,
@@ -53,8 +67,14 @@ pub(crate) fn run(root: &Path) -> Result<(), String> {
         cargo(root, "tests", &["test", "--workspace", "--locked"]),
         documentation(root),
         step("manifest", || crate::manifest_check(root)),
-        step("documentation runs", || crate::doc_run::run(root)),
-        step("no local paths", || crate::leak_check::run(root)),
+        // The blocks of the documentation call `cargo xtask`, which would relink the
+        // running binary, so they build where the other nested commands build.
+        step("documentation runs", || {
+            crate::doc_run::run(root, &nested_target(root))
+        }),
+        step("no local paths", || {
+            crate::leak_check::run(root, &nested_target(root))
+        }),
     ];
 
     report(&outcomes)
@@ -128,6 +148,7 @@ fn documentation(root: &Path) -> Outcome {
         .current_dir(root)
         .env("RUSTDOCFLAGS", "-D warnings")
         .env("RUSTFLAGS", crate::flags::remap_rustflags(root))
+        .env("CARGO_TARGET_DIR", nested_target(root))
         .status();
     finish(
         "documentation",
@@ -151,6 +172,7 @@ fn external(
         .args(arguments)
         .current_dir(root)
         .env("RUSTFLAGS", crate::flags::remap_rustflags(root))
+        .env("CARGO_TARGET_DIR", nested_target(root))
         .status();
 
     match outcome {

@@ -100,26 +100,26 @@ fn every_check_is_in_both_the_workflow_and_the_one_command() {
     }
 }
 
+/// Where each ordered check sits in a file, by the needle at `which` in its row.
+fn positions(text: &str, which: usize) -> Vec<usize> {
+    ORDERED
+        .iter()
+        .map(|name| {
+            let row = CHECKS
+                .iter()
+                .find(|check| check.0 == *name)
+                .unwrap_or_else(|| panic!("{name} is not a known check"));
+            let needle = if which == 1 { row.1 } else { row.2 };
+            text.find(needle)
+                .unwrap_or_else(|| panic!("{needle} is not in this file"))
+        })
+        .collect()
+}
+
 #[test]
 fn the_one_command_runs_the_checks_in_the_order_the_workflow_does() {
     let workflow = read(".github/workflows/ci.yml");
     let command = read("xtask/src/ci.rs");
-
-    /// Where each ordered check sits in a file, by the needle at `which` in its row.
-    fn positions(text: &str, which: usize) -> Vec<usize> {
-        ORDERED
-            .iter()
-            .map(|name| {
-                let row = CHECKS
-                    .iter()
-                    .find(|check| check.0 == *name)
-                    .unwrap_or_else(|| panic!("{name} is not a known check"));
-                let needle = if which == 1 { row.1 } else { row.2 };
-                text.find(needle)
-                    .unwrap_or_else(|| panic!("{needle} is not in this file"))
-            })
-            .collect()
-    }
 
     let in_workflow = positions(&workflow, 1);
     let in_command = positions(&command, 2);

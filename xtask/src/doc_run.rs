@@ -66,8 +66,8 @@ impl Shell {
 /// # Errors
 ///
 /// Returns a sentence per failed block, joined, so a run reports every failure at once.
-pub(crate) fn run(root: &Path) -> Result<(), String> {
-    build_the_binary(root)?;
+pub(crate) fn run(root: &Path, target: &Path) -> Result<(), String> {
+    build_the_binary(root, target)?;
 
     let mut blocks = Vec::new();
     for file in markdown_files(root) {
@@ -76,7 +76,7 @@ pub(crate) fn run(root: &Path) -> Result<(), String> {
         collect(&file, &text, &mut blocks);
     }
 
-    let path_with_release = prepend_path(&root.join("target").join("release"));
+    let path_with_release = prepend_path(&target.join("release"));
     let mut failures = Vec::new();
     let (mut ran, mut skipped) = (0usize, 0usize);
 
@@ -102,7 +102,7 @@ pub(crate) fn run(root: &Path) -> Result<(), String> {
             continue;
         }
 
-        match execute(root, &path_with_release, block) {
+        match execute(root, target, &path_with_release, block) {
             Ok(()) => {
                 println!("doc-run: ok   {place}");
                 ran += 1;
@@ -126,7 +126,7 @@ pub(crate) fn run(root: &Path) -> Result<(), String> {
 }
 
 /// The release binary the blocks call.
-fn build_the_binary(root: &Path) -> Result<(), String> {
+fn build_the_binary(root: &Path, target: &Path) -> Result<(), String> {
     let status = Command::new("cargo")
         .args([
             "build",
@@ -140,6 +140,7 @@ fn build_the_binary(root: &Path) -> Result<(), String> {
         // The same flags as every other xtask build, so alternating xtask commands never
         // rebuild the world over a flag change.
         .env("RUSTFLAGS", crate::flags::remap_rustflags(root))
+        .env("CARGO_TARGET_DIR", target)
         .status()
         .map_err(|failure| format!("cargo could not be started: {failure}"))?;
     if status.success() {
@@ -217,8 +218,13 @@ fn prepend_path(release: &Path) -> std::ffi::OsString {
 }
 
 /// Runs one block in its shell, from the repository root.
-fn execute(root: &Path, path: &std::ffi::OsStr, block: &Block) -> Result<(), String> {
-    let directory = root.join("target").join("doc-run");
+fn execute(
+    root: &Path,
+    target: &Path,
+    path: &std::ffi::OsStr,
+    block: &Block,
+) -> Result<(), String> {
+    let directory = target.join("doc-run");
     std::fs::create_dir_all(&directory)
         .map_err(|failure| format!("{} could not be created: {failure}", directory.display()))?;
 
@@ -272,6 +278,7 @@ fn execute(root: &Path, path: &std::ffi::OsStr, block: &Block) -> Result<(), Str
     let output = command
         .current_dir(root)
         .env("PATH", path)
+        .env("CARGO_TARGET_DIR", target)
         .env_remove("SOLAR_LOG")
         .env_remove("SOLAR_LOG_FORMAT")
         .output()

@@ -35,8 +35,8 @@ fn main() -> ExitCode {
     let outcome = match task {
         "manifest" => manifest(rest.contains(&"--check")),
         "ci" => ci::run(&root()),
-        "doc-run" => doc_run::run(&root()),
-        "leak-check" => leak_check::run(&root()),
+        "doc-run" => doc_run::run(&root(), &flags::target_dir(&root())),
+        "leak-check" => leak_check::run(&root(), &flags::target_dir(&root())),
         "new-api" => match rest.first() {
             Some(name) if !name.starts_with('-') => new_api::run(&root(), name),
             _ => Err(

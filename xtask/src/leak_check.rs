@@ -15,7 +15,7 @@ use crate::flags;
 /// # Errors
 ///
 /// Returns what leaked and where it sat, or why the check could not run.
-pub(crate) fn run(root: &Path) -> Result<(), String> {
+pub(crate) fn run(root: &Path, target: &Path) -> Result<(), String> {
     let rustflags = flags::remap_rustflags(root);
     let status = Command::new("cargo")
         .args([
@@ -28,14 +28,14 @@ pub(crate) fn run(root: &Path) -> Result<(), String> {
         ])
         .current_dir(root)
         .env("RUSTFLAGS", &rustflags)
+        .env("CARGO_TARGET_DIR", target)
         .status()
         .map_err(|failure| format!("cargo could not be started: {failure}"))?;
     if !status.success() {
         return Err("the release build failed, so there is nothing to check".to_owned());
     }
 
-    let binary = root
-        .join("target")
+    let binary = target
         .join("release")
         .join(format!("solar{}", std::env::consts::EXE_SUFFIX));
     let bytes = std::fs::read(&binary)
