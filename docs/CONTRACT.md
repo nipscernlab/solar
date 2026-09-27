@@ -336,9 +336,10 @@ is an API like any other, with a specification, a schema and examples.
 ### 9.1 What a session does while a call is running
 
 A session reads its input on a thread of its own, into a queue. Calls still run **one at a
-time, in the order they arrived**. The single exception is `solar.cancel`, which is
-answered the moment it is read, because a cancellation that waited its turn behind the
-call it is cancelling would be useless.
+time, in the order they arrived**. The single exception is `solar.cancel` **sent on its
+own**, which is answered the moment it is read, because a cancellation that waited its
+turn behind the call it is cancelling would be useless. Inside a batch it waits its turn
+like any other element: a batch is one message, and its elements run in order.
 
 A response may therefore arrive out of order: the answer to a `solar.cancel` sent second
 can precede the answer to the call sent first. JSON-RPC 2.0 allows this, and `id` is how a

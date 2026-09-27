@@ -530,3 +530,48 @@ fn a_full_queue_refuses_new_requests_and_still_answers_a_cancellation() {
         );
     }
 }
+
+#[test]
+fn a_cancellation_inside_a_batch_waits_its_turn_like_any_other_element() {
+    // Section 9.1: a batch is one message, and its elements run in order. Only a
+    // `solar.cancel` sent on its own is answered where it is read.
+    let (arrived, release, _turn) = gate();
+    let (keys, input) = Keyboard::new();
+    let tape = Tape::default();
+    let writing = tape.clone();
+    let session = std::thread::spawn(move || serve(input, writing, &dispatcher()).unwrap());
+
+    keys.send(request(1, "test.waits")).unwrap();
+    arrived
+        .recv_timeout(Duration::from_secs(2))
+        .expect("the handler reached the gate");
+
+    // A batch holding a cancellation for the call that is running. It goes into the
+    // queue, so nothing is answered while the first call is held.
+    keys.send(
+        "[{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"solar.cancel\",\"params\":{\"id\":1}}]\n"
+            .to_owned(),
+    )
+    .unwrap();
+
+    std::thread::sleep(Duration::from_millis(50));
+    assert!(
+        tape.lines().is_empty(),
+        "a cancellation inside a batch waits its turn: {:?}",
+        tape.lines()
+    );
+
+    release.send(()).unwrap();
+    drop(keys);
+    let answered = session.join().unwrap();
+
+    let lines = tape.lines();
+    assert_eq!(answered, 2);
+    assert_eq!(lines.len(), 2, "one line for the call, one for the batch");
+    // By the time the batch runs, the call it names has been answered.
+    let batch = lines
+        .iter()
+        .find(|line| line.is_array())
+        .expect("the batch answers with an array");
+    assert_eq!(batch[0]["result"]["data"]["outcome"], "already_finished");
+}

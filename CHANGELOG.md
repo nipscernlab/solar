@@ -45,6 +45,9 @@ unless it asks for one, the protocol stays `solar/1`, and no API changed shape.
   resident memory of the server. The figures are in the README.
 - `crates/solar-apis/tests/heap.rs`, which counts what one `solar.ping` allocates with
   `dhat` and holds a ceiling, so a change that allocates more has to say why.
+- A `solar.cancel` inside a batch waits its turn like any other element, which section
+  9.1 now says in as many words and a test holds: only one sent on its own is answered
+  where it is read.
 - The rule for choosing between `/etc/os-release` and `/usr/lib/os-release` is no longer
   compiled only on Linux: the paths still are, the rule is not, and five tests run it on
   every system. It was judged by no test on Windows or on a Mac before.
