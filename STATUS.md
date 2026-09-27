@@ -69,7 +69,7 @@ full command is the gate before a push.
 | `typos` | 1.50.3 | British English, with the wire constants and serde's identifiers exempted by name. |
 | `taplo` | 0.10 | TOML formatting. |
 | `dhat` | 0.3.3 | What one call allocates, counted rather than guessed, with a ceiling. |
-| `loom` | not adopted | `docs/OPEN_QUESTIONS.md` says what it would have to model, and was revisited on 27 September 2026 when cancellation added a second lock. Every transition of the session state happens under one lock, and the three orderings that matter are tested deterministically. |
+| `loom` | not adopted | Record [38](docs/adr/0038-loom-is-not-adopted.md) says what it would have to model, and was revisited when cancellation added a second lock. Every transition of the session state happens under one lock, and the three orderings that matter are tested deterministically. |
 
 ## What was measured
 
@@ -81,7 +81,7 @@ of them is a promise about another machine.
 | Tests | **329**, all passing on Windows and on Linux |
 | Conformance cases | **15**, in plain JSON, replayable by a client in any language |
 | Coverage of the shipped crates | **93.75% of lines**, 94.17% of functions, 93.15% of regions. The floor is 91 and only ever rises. |
-| Decision records | **12** |
+| Decision records | **38**, after the twenty-seven confirmed on 27 September 2026 |
 | The manifest | **1 088 lines** for six APIs, with shared `$defs`. It was 1 152 lines for five before they were shared, which is 230 lines per API then and 181 now |
 | Release binary | **1 782 272 bytes** on Windows, 9 486 144 on Linux, both with `debug = "line-tables-only"` |
 
@@ -374,59 +374,37 @@ Also worth enabling, at **Settings, Code security**: Dependabot alerts and the s
 scanning that GitHub offers for public repositories. `.github/dependabot.yml` already
 asks for the weekly version updates; the alerts are a separate switch.
 
-## Every open question, with a proposal
+## Every open question, answered
 
-Section 9 of the brief: for each entry still open in
-[`docs/OPEN_QUESTIONS.md`](docs/OPEN_QUESTIONS.md), the options and what each one costs,
-so that they can be decided in one reading rather than one at a time.
+**All twenty-seven were confirmed by the architect on 27 September 2026**, each as it was
+proposed, and each is now a record in [`docs/adr/`](docs/adr/), numbered 12 to 38.
+[`docs/OPEN_QUESTIONS.md`](docs/OPEN_QUESTIONS.md) holds nothing open.
 
-**Twenty-seven entries.** Twenty-two of them are proposed as they stand: they were the
-conservative choice, nothing has argued against them since, and confirming one moves it
-to `docs/adr/` and out of that file. Five are worth a decision, and they are first.
+The five that were worth reading carefully, and what was decided:
 
-### The five worth reading carefully
+| The question | The decision | Record |
+| ------------ | ------------ | ------ |
+| The minimum Rust version | Stays at **1.97** until somebody is actually blocked. A weekly job proves the declared minimum, so the claim is checked rather than asserted. | [24](docs/adr/0024-the-minimum-rust-version-is-1-97.md) |
+| `unsafe`, `deny` or `forbid` | Stays at **`deny`**, with the single documented exception for `RtlGetVersion`. A dependency such as `windows-sys` would trade one argued exception for somebody else's unsafe code. | [20](docs/adr/0020-unsafe-is-denied-not-forbidden.md) |
+| The superseded entry for a sequential session | The entry **stays marked as superseded**, and the part still worth deciding, that calls run one at a time in the order they arrived, is now a record of its own. | [18](docs/adr/0018-calls-run-one-at-a-time-in-order.md) |
+| `loom` | **Not adopted**, with the revisit trigger rewritten: when a transition of the session state happens outside the one lock, or when the two threads talk through atomics rather than through it. | [38](docs/adr/0038-loom-is-not-adopted.md) |
+| Running external programs | **No API runs one.** Third-party tools come in a later stage, after this version reaches the laboratory. The vocabulary they need is already in the contract. | [31](docs/adr/0031-no-api-runs-an-external-program.md) |
 
-| # | The question | The options, and what each costs | Proposal |
-| - | ------------ | -------------------------------- | -------- |
-| 1 | **The minimum Rust version is declared as 1.97**, which is the compiler this was built with. | **(a)** Leave it: honest, and refuses a machine with an older toolchain that might well work. **(b)** Lower it to the oldest version that really compiles, found by bisecting in CI: costs one scheduled job and some hours, and buys nothing until somebody has an older compiler. **(c)** Raise it with each release: simplest, and makes SOLAR harder to build on a laboratory machine that is behind. | **(a)**, until somebody is actually blocked. The weekly job already proves the declared minimum, so the claim is checked rather than asserted. |
-| 2 | **`unsafe` is `deny` rather than `forbid`**, for one function, `RtlGetVersion`. | **(a)** Leave it: one `allow(unsafe_code)` in the repository, six lines, with the safety argument above it, and `grep` finds the whole exception. **(b)** Go back to `forbid` and ask Windows its version by starting a program: breaks the rule that no API starts a program, and is slower and less reliable. **(c)** Move the call into a dependency such as `windows-sys`: restores `forbid`, and costs a runtime dependency, its build time and its own `unsafe`, which is then somebody else's. | **(a)**. **(c)** is worth revisiting only if a second `unsafe` call ever appears; one exception with a written argument is cheaper than a dependency. |
-| 3 | **The entry for a strictly sequential session is superseded**, in part, by record 11: the session now reads ahead, and what the entry was protecting is a test rather than a property of the loop. | **(a)** Delete it, since record 11 covers the decision and the entry now only explains history. **(b)** Keep it as it stands, marked superseded, so that somebody who remembers the old behaviour finds out what happened to it. **(c)** Confirm the part that is still a decision, that calls run one at a time and in order, as a record of its own. | **(b)** until the next stage, then **(c)**. The promise that calls run one at a time is a real decision and deserves a record; it is currently stated inside record 11, which is about cancelling. |
-| 4 | **`loom` is not adopted**, revisited on 27 September 2026 now that cancellation added a second lock and two atomics. | **(a)** Leave it: every transition of the session state happens under one lock, the three orderings that matter are tested deterministically, and the race is also repeated forty times unsynchronised. **(b)** Adopt it: `session.rs` would be made generic over its synchronisation primitives or duplicated behind `cfg(loom)`, which changes the shape of the code under test, and would explore orderings that the deterministic tests already pin. | **(a)**, with the revisit trigger rewritten: when a transition happens outside that lock, or when the two threads talk through atomics rather than through it. |
-| 5 | **No API runs an external program**, by instruction, and the vocabulary for it is still in the contract. | **(a)** Leave the scope as it is until an API needs it. **(b)** Bring back `tools.detect` and the process runner from `1029db4`: they exist and were removed deliberately, and with them come five reasons and three warning codes that the catalogue no longer has. | **(a)**. This is the architect's call about the next stage rather than about this one; the history is there and the vocabulary was kept on purpose. |
-
-### The twenty-two proposed as they stand
-
-One line each: what was chosen, and the reason it should stay chosen.
-
-| The question | Why it should stay |
-| ------------ | ------------------ |
-| The envelope is checked in a fixed order: `id`, `jsonrpc`, `method`, `params` | `id` first is what lets every later error be addressed to the right call. Two implementations agree on which error a broken message deserves only if the order is stated. |
-| A malformed method name is `INVALID_VALUE`, not `NOT_FOUND` | It cannot possibly be registered, and the mistake is the shape of the name. The hint offers the lower case spelling, which is the correction almost every time. |
-| A value echoed in `received` is cut at 200 bytes | An error about a 16 MiB request must not carry 16 MiB back. The type changes when a composite is described; omitting the value tells the caller nothing, which is worse. |
-| A registry that does not build answers every call with `INTERNAL` | Every call gets a response, including this one. A caller that sees the error learns more than one whose process exited before it could connect. |
-| The panic hook is global, installed by the dispatcher | It records where a panic inside a call happened and forwards anything else to the hook that was already there, so a panic in a test still reports normally. |
-| An oversized line is discarded up to the next newline | Nothing oversized is held in memory, and the stream stays aligned, so the next message is answered normally. Stopping the read would parse the rest of that line as new messages. |
-| `system.info` reads the release where each system keeps it | Already overruled once, by the architect, and the current answer starts no program. A source that cannot be read leaves three nulls and a warning naming it. |
-| `cpu_count` may be `null` | `1` would be a guess that looks like a measurement. |
-| The manifest layout version is semantic | The same rule as everything else here, and it leaves room to add a member in a minor bump without every consumer refusing the file. |
-| Suggestions come from the Levenshtein distance, at most three | It catches a typed letter, a swapped pair and a missing word, and refuses to guess when the caller wrote something else. Alphabetical ties make the same mistake give the same error, which matters when the error is in a test. |
-| An example declares how it is compared, and `$any` stands for the unreproducible | Examples are tests, and a test that cannot pass is worse than none. `$any` keeps the shape checked while admitting what no machine can know in advance. |
-| Integration tests lift the lints that forbid panicking | A test reports failure by panicking. `clippy.toml` covers `#[cfg(test)]` inside a crate; an integration test is its own crate, so the allow is written at the top of each file with its reason. |
-| A misuse of the command line exits 2, like `INVALID_ARGUMENT` | It is the same kind of mistake, and a script that checks for 2 should not have to learn a second number. |
-| `solar manifest` indents on a terminal and prints one line into a pipe | A person reading 1 100 lines wants them laid out; a program wants one line. `--pretty` forces the indented form, and nothing else in the interface changes with the terminal. |
-| The mark is printed by `solar version` and nowhere else | The brand requires it and the contract requires machine-readable output to stay exact. `solar version` is the one human command where the mark says which build is answering. |
-| The ASCII drawing of the mark is a switch, not a guess | There is no reliable way to ask a terminal whether it can draw a half block, and guessing wrong gives a screen of mojibake. `SOLAR_ASCII` is honest about what is not knowable. |
-| CI runs on Linux, Windows and macOS | The three systems the laboratory uses. Anything less would mean finding out on somebody's machine. |
-| Local paths are stripped with computed remap flags, not committed ones | The two prefixes that leak differ per machine, so they cannot be committed. What is enforced is the artefact: `leak-check` scans every byte of the release binary, on all three systems. The flags move into the profile when `trim-paths` stabilises. |
-| The documentation runner executes blocks, and `no-run` is the audited exception | Every `no-run` block says on its first line why, and there are now twenty-four: the ones that would mutate the working tree, the ones that are already CI steps, and the eight in the testing guide that install a toolchain, clone the repository or wait for a terminal. |
-| The repository is written in British English | `typos` with `locale = "en-gb"` enforces the spelling; `docs/STYLE.md` states the choice for the prose a tool cannot check. |
-| Pedantic lints are fixed or allowed at the site, never at the workspace | A workspace allow silences a lint everywhere, including where it would be right. A local allow with a mandatory reason keeps the lint alive and the exception argued, which `allow_attributes_without_reason` enforces. |
-| `cargo xtask ci` builds its nested commands in `target/ci` | Windows refuses to replace a running executable, and the one command is itself one. The cost is one extra build tree. It was wrong to give the same directory to `cargo mutants`, which copies the tree itself; that is finding 9 below. |
+The other twenty-two were confirmed as they stood: the order the envelope is checked in,
+the status a malformed method name gets, the 200 byte cut on `received`, the registry that
+answers rather than refusing to start, the panic hook that forwards, the oversized line
+that is discarded to the newline, the release of the operating system and how it is read,
+`cpu_count` that may be null, the semantic `schema_version`, the edit distance that offers
+suggestions, how an example declares its comparison, the lints integration tests lift, the
+exit code of a misuse, the two forms of `solar manifest`, where the mark is printed and how
+its drawing is chosen, the three platforms CI runs on, the computed remap flags, the
+documentation runner and its audited exceptions, British English, pedantic lints allowed at
+the site, and the nested target directory of the one command.
 
 ## What is left
 
-**For the architect.** The twelve decision records in [`docs/adr/`](docs/adr/) are the
-settled ones. The twenty-seven entries still open are above, each with a proposal.
+**For the architect.** The **thirty-eight** decision records in [`docs/adr/`](docs/adr/)
+are the settled ones, and nothing is open.
 
 **Not started, and out of scope by instruction.** Anything that runs an external program:
 `tools.detect`, the table of known tools and the process runner, which are in the history
