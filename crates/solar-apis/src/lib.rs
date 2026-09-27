@@ -25,6 +25,7 @@ use std::sync::{Arc, OnceLock};
 use solar_core::dispatch::Dispatcher;
 use solar_core::registry::{Registry, RegistryBuilder, RegistryProblem};
 
+pub mod os_release;
 pub mod solar_describe;
 pub mod solar_manifest;
 pub mod solar_ping;

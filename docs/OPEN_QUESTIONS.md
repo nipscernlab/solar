@@ -147,14 +147,36 @@ While `solar_version` is below `1.0.0`, an API that claims `stable` fails the bu
 **Why.** A rule is better than a judgement per API. Nothing in SOLAR can be more stable
 than SOLAR, and the first stable release is the moment to make that promise deliberately.
 
-### `system.info` does not report the release of the operating system
+### `system.info` reports the release of the operating system
 
-It reports the system, the family, the architecture, the pointer width, the thread count,
-three paths and the two separators. Not the version string.
+**Overruled by the architect on 26 September 2026.** It was left out of the first draft on
+the grounds that reading it meant running `sw_vers` or `lsb_release`, and this stage
+starts no external program. That was wrong: every system keeps it somewhere a process can
+read directly.
 
-**Why.** Reading that version means asking the operating system, which on Linux and macOS
-means running `sw_vers` or `lsb_release`. This stage starts no external program. When
-external programs come back, this is the first field to add.
+- **Linux**, and anything else following the os-release specification: `/etc/os-release`,
+  then `/usr/lib/os-release`, which is the fallback that specification names.
+- **macOS**: `/System/Library/CoreServices/SystemVersion.plist`, for `ProductVersion` and
+  `ProductBuildVersion`.
+- **Windows**: `RtlGetVersion` in `ntdll`. `GetVersionEx`, its documented alternative,
+  reports an older version to a program that carries no compatibility manifest, so it
+  would have this build call Windows 11 something else.
+
+A source that is missing or unreadable leaves `os_name`, `os_release` and `os_build` null
+and adds an `OS_RELEASE_UNAVAILABLE` warning naming the source that was tried. Nothing is
+guessed, and the call still succeeds. `system.info` went to 1.1.0 for it: members were
+added and none changed, which is a minor bump under section 10 of the contract.
+
+### Unsafe code is denied rather than forbidden, for exactly one function
+
+`RtlGetVersion` is a foreign function, and calling it is `unsafe`. The workspace lint went
+from `forbid` to `deny`, and `windows_version` in `crates/solar-apis/src/os_release.rs`
+carries the only `allow(unsafe_code)` in the repository.
+
+**Why.** `forbid` cannot be lifted anywhere, at all, which would have left starting a
+program as the only way to ask Windows what it is. `grep -rn "allow(unsafe_code)" crates/`
+finds the whole of the exception, and the call is six lines with the safety argument
+written above it.
 
 ### `cpu_count` may be `null`
 

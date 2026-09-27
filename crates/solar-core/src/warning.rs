@@ -37,6 +37,8 @@ macro_rules! warning_codes {
 warning_codes! {
     BuildMetadataIncomplete => "BUILD_METADATA_INCOMPLETE",
         "Part of the build metadata was not available when SOLAR was compiled.";
+    OsReleaseUnavailable => "OS_RELEASE_UNAVAILABLE",
+        "The operating system did not say which release it is.";
 }
 
 impl std::fmt::Display for WarningCode {

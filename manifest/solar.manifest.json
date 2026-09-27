@@ -1034,7 +1034,7 @@
       "version": "1.0.0"
     },
     {
-      "description": "What a caller needs in order to know which machine it is talking to: the operating system and its family, the architecture, the width of a pointer, how many threads run at once, the current directory, the path of the binary that is answering, the temporary directory, and the two separators that differ between Windows and the rest, which is what makes a path in a response usable without guessing.\n\nEverything here comes from the standard library and from this process. Nothing is asked of the operating system through a helper program, which is why the release of the operating system is not reported yet: on Unix that means running `sw_vers` or `lsb_release`, and `solar/1` starts no external program.\n\nNothing personal is reported beyond what those paths necessarily contain: a home directory usually holds a user name, and that is the only such thing here. No environment variables, no network names, no serial numbers.",
+      "description": "What a caller needs in order to know which machine it is talking to: the operating system with its name and release, its family, the architecture, the width of a pointer, how many threads run at once, the current directory, the path of the binary that is answering, the temporary directory, and the two separators that differ between Windows and the rest, which is what makes a path in a response usable without guessing.\n\nThe release is read where each system keeps it, and never by starting a program: the os-release file on Linux, `SystemVersion.plist` on macOS, and `RtlGetVersion` on Windows, which reports the real version where the documented alternative reports a compatibility lie. When that source is missing or unreadable, `os_name`, `os_release` and `os_build` are null and the call warns with OS_RELEASE_UNAVAILABLE saying which source was tried. Nothing is guessed, and the call still succeeds.\n\nNothing personal is reported beyond what those paths necessarily contain: a home directory usually holds a user name, and that is the only such thing here. No environment variables, no network names, no serial numbers.",
       "errors": [
         {
           "reason": "ENVIRONMENT_UNAVAILABLE",
@@ -1053,7 +1053,10 @@
             "current_dir": "$any",
             "executable": "$any",
             "os": "$any",
+            "os_build": "$any",
             "os_family": "$any",
+            "os_name": "$any",
+            "os_release": "$any",
             "path_list_separator": "$any",
             "path_separator": "$any",
             "pointer_width": "$any",
@@ -1092,9 +1095,30 @@
             "description": "What Rust calls this system: `windows`, `linux`, `macos`, and so on.",
             "type": "string"
           },
+          "os_build": {
+            "description": "The build, for the systems that count builds apart from releases.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "os_family": {
             "description": "`windows` or `unix`.",
             "type": "string"
+          },
+          "os_name": {
+            "description": "What the system calls itself: a distribution on Linux, `macOS`, `Windows`.\n`null` when it did not say, and then a warning says why.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "os_release": {
+            "description": "The release, as the system spells it: `24.04`, `15.0`, `10.0.26200`.",
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "path_list_separator": {
             "description": "What separates the entries of the `PATH` variable: a semicolon or a colon.",
@@ -1143,7 +1167,7 @@
       "stability": "experimental",
       "summary": "Reports the operating system, the processor and the process",
       "timeout_ms": 2000,
-      "version": "1.0.0"
+      "version": "1.1.0"
     }
   ],
   "protocol": "solar/1",

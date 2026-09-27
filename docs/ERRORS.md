@@ -221,6 +221,16 @@ A warning travels in `result.warnings` when a call succeeded and the caller stil
 know something. Each one is `{"code": "...", "message": "..."}`. The codes are closed and
 documented here, exactly like reasons.
 
+### OS_RELEASE_UNAVAILABLE
+
+`system.info` could not read which release of the operating system it is running on, so
+`os_name`, `os_release` and `os_build` are `null`. The message says which source was
+tried and what went wrong: the os-release file on Linux, `SystemVersion.plist` on macOS,
+`RtlGetVersion` on Windows.
+
+The call still succeeds, because everything else it reports is still true. Nothing is
+guessed in place of the release.
+
 ### BUILD_METADATA_INCOMPLETE
 
 `solar.version` could not report every piece of build metadata, because the binary was

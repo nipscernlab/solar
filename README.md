@@ -74,7 +74,7 @@ catalogue is [docs/ERRORS.md](docs/ERRORS.md).
 | `solar.version` | The version of SOLAR, the protocol, the manifest layout, and how this binary was built. |
 | `solar.manifest` | Every API this build answers to, with schemas and examples, in one document. |
 | `solar.describe` | One API, laid out the same way. The call to make before making any other. |
-| `system.info` | The operating system, the processor and the process. |
+| `system.info` | The operating system with its release, the processor and the process. |
 
 Nothing in this stage runs an external program, writes a file or touches the network, and
 every API says so in its own specification.
@@ -214,7 +214,7 @@ docs/brand/                     the mark, its colours and its terminal form
 
 ```
 cargo build --release              the solar binary
-cargo test --workspace             165 tests
+cargo test --workspace             177 tests
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all -- --check
 cargo xtask manifest --check       the manifest is not stale

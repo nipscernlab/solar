@@ -27,7 +27,11 @@ serde_path_to_error = "0.1"
 # Lints are shared by every crate in the workspace. CI runs clippy with `-D warnings`,
 # so everything below that is a warning is effectively an error there as well.
 [workspace.lints.rust]
-unsafe_code = "forbid"
+# Denied rather than forbidden, so that one documented function can call RtlGetVersion.
+# `forbid` cannot be lifted at all, and the only alternative to that call is starting a
+# program, which no API in solar/1 does. Every other crate keeps it at deny with no
+# exception, and `grep -rn "allow(unsafe_code)" crates/` finds the whole of it.
+unsafe_code = "deny"
 missing_docs = "warn"
 missing_debug_implementations = "warn"
 unreachable_pub = "warn"

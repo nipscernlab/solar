@@ -23,7 +23,8 @@ session loop with the 16 MiB line limit. The manifest generator. RFC 3339 timest
 Levenshtein suggestions and the name rule, all without a dependency.
 
 **Five APIs.** `solar.ping`, `solar.version`, `solar.manifest`, `solar.describe` and
-`system.info`. Each one declares its errors, its side effects, its idempotency, its
+`system.info`, the last at 1.1.0 since it learned to report the release of the operating
+system. Each one declares its errors, its side effects, its idempotency, its
 timeout and its examples, and each example is replayed against a real execution by the
 test suite.
 
@@ -38,7 +39,7 @@ suite before anyone touches it. This was verified end to end: a throwaway
 `build.run_target` was generated, passed every contract test, tripped the manifest drift
 check exactly as it should, and was removed.
 
-**165 tests**, of which the ones that matter most are the ones that police the template:
+**177 tests**, of which the ones that matter most are the ones that police the template:
 the naming rule, uniqueness, complete specifications, canonical and documented errors,
 parameter schemas that refuse unknown members, JSON Schema 2020-12, examples that validate
 against their own schemas and match reality, the manifest not being stale, the error
@@ -99,9 +100,8 @@ above are settled.
 external program. `tools.detect`, the table of known tools and the process runner were
 written and removed; they are in the history at `1029db4` and its parent, and the
 vocabulary they need is still in the contract. When they come back, `docs/CONTRACT.md`
-needs its section on running external programs again, `docs/ERRORS.md` needs the reasons
-for a program that cannot be started, and `system.info` can finally report the release of
-the operating system.
+needs its section on running external programs again and `docs/ERRORS.md` needs the
+reasons for a program that cannot be started.
 
 **Known gaps.**
 

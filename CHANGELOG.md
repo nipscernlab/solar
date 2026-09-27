@@ -20,6 +20,11 @@ protocol is stated here in its own line.
   session loop with a 16 MiB line limit, and the manifest generator.
 - Five APIs: `solar.ping`, `solar.version`, `solar.manifest`, `solar.describe` and
   `system.info`.
+- `system.info` 1.1.0 reports the release of the operating system in `os_name`,
+  `os_release` and `os_build`, read where each system keeps it and never by starting a
+  program: the os-release file on Linux, `SystemVersion.plist` on macOS, `RtlGetVersion`
+  on Windows. A source that cannot be read leaves the three null and adds an
+  `OS_RELEASE_UNAVAILABLE` warning naming what was tried.
 - The `solar` binary: `call`, `serve --stdio`, `list`, `describe`, `manifest` and
   `version`, with an exit code per status.
 - `cargo xtask manifest` and `cargo xtask new-api <name>`.

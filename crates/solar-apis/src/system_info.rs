@@ -8,6 +8,7 @@ use solar_core::context::Context;
 use solar_core::error::{ErrorDetail, SolarError};
 use solar_core::reason::Reason;
 use solar_core::status::Status;
+use solar_core::warning::WarningCode;
 
 /// The parameters of `system.info`, of which there are none.
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -21,6 +22,13 @@ pub struct Output {
     pub os: String,
     /// `windows` or `unix`.
     pub os_family: String,
+    /// What the system calls itself: a distribution on Linux, `macOS`, `Windows`.
+    /// `null` when it did not say, and then a warning says why.
+    pub os_name: Option<String>,
+    /// The release, as the system spells it: `24.04`, `15.0`, `10.0.26200`.
+    pub os_release: Option<String>,
+    /// The build, for the systems that count builds apart from releases.
+    pub os_build: Option<String>,
     /// The processor architecture: `x86_64`, `aarch64`, and so on.
     pub arch: String,
     /// The width of a pointer in bits, which is how wide this build is.
@@ -45,7 +53,7 @@ pub struct SystemInfo;
 
 impl Api for SystemInfo {
     const NAME: &'static str = "system.info";
-    const VERSION: &'static str = "1.0.0";
+    const VERSION: &'static str = "1.1.0";
     type Params = Params;
     type Output = Output;
 
@@ -54,14 +62,16 @@ impl Api for SystemInfo {
             summary: "Reports the operating system, the processor and the process",
             description: "\
 What a caller needs in order to know which machine it is talking to: the operating system \
-and its family, the architecture, the width of a pointer, how many threads run at once, \
-the current directory, the path of the binary that is answering, the temporary directory, \
-and the two separators that differ between Windows and the rest, which is what makes a \
-path in a response usable without guessing.\n\n\
-Everything here comes from the standard library and from this process. Nothing is asked \
-of the operating system through a helper program, which is why the release of the \
-operating system is not reported yet: on Unix that means running `sw_vers` or \
-`lsb_release`, and `solar/1` starts no external program.\n\n\
+with its name and release, its family, the architecture, the width of a pointer, how many \
+threads run at once, the current directory, the path of the binary that is answering, the \
+temporary directory, and the two separators that differ between Windows and the rest, \
+which is what makes a path in a response usable without guessing.\n\n\
+The release is read where each system keeps it, and never by starting a program: the \
+os-release file on Linux, `SystemVersion.plist` on macOS, and `RtlGetVersion` on Windows, \
+which reports the real version where the documented alternative reports a compatibility \
+lie. When that source is missing or unreadable, `os_name`, `os_release` and `os_build` \
+are null and the call warns with OS_RELEASE_UNAVAILABLE saying which source was tried. \
+Nothing is guessed, and the call still succeeds.\n\n\
 Nothing personal is reported beyond what those paths necessarily contain: a home \
 directory usually holds a user name, and that is the only such thing here. No environment \
 variables, no network names, no serial numbers.",
@@ -78,6 +88,9 @@ variables, no network names, no serial numbers.",
                 json!({
                     "os": ANY,
                     "os_family": ANY,
+                    "os_name": ANY,
+                    "os_release": ANY,
+                    "os_build": ANY,
                     "arch": ANY,
                     "pointer_width": ANY,
                     "cpu_count": ANY,
@@ -91,7 +104,7 @@ variables, no network names, no serial numbers.",
         }
     }
 
-    fn call(_ctx: &Context, _params: Params) -> Result<Output, SolarError> {
+    fn call(ctx: &Context, _params: Params) -> Result<Output, SolarError> {
         let current_dir = std::env::current_dir()
             .map_err(|failure| unavailable("the current directory", &failure.to_string()))?;
         let executable = std::env::current_exe()
@@ -100,9 +113,23 @@ variables, no network names, no serial numbers.",
             .ok()
             .and_then(|count| u32::try_from(count.get()).ok());
 
+        let release = match crate::os_release::read() {
+            Ok(release) => release,
+            Err(why) => {
+                ctx.warn(
+                    WarningCode::OsReleaseUnavailable,
+                    format!("This system did not say which release it is: {why}."),
+                );
+                crate::os_release::Release::default()
+            }
+        };
+
         Ok(Output {
             os: std::env::consts::OS.to_owned(),
             os_family: std::env::consts::FAMILY.to_owned(),
+            os_name: release.name,
+            os_release: release.release,
+            os_build: release.build,
             arch: std::env::consts::ARCH.to_owned(),
             pointer_width: usize::BITS,
             cpu_count,
@@ -152,6 +179,48 @@ mod tests {
         assert!(!output.temp_dir.is_empty());
         assert!(output.cpu_count.unwrap_or(1) >= 1);
         assert!(output.pointer_width == 64 || output.pointer_width == 32);
+    }
+
+    #[test]
+    fn the_release_is_reported_or_the_call_says_why_it_is_not() {
+        let ctx = context("system.info");
+        let output = SystemInfo::call(&ctx, Params {}).unwrap();
+        let warned = ctx
+            .warnings()
+            .iter()
+            .any(|w| w.code == WarningCode::OsReleaseUnavailable);
+
+        if warned {
+            assert_eq!(
+                output.os_name, None,
+                "a warned call reports nothing about the release"
+            );
+            assert_eq!(output.os_release, None);
+            assert_eq!(output.os_build, None);
+        } else {
+            assert!(
+                output.os_name.is_some(),
+                "a system that answered must have a name"
+            );
+            assert!(
+                output.os_release.is_some() || output.os_build.is_some(),
+                "a system that answered must have a release or a build: {output:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn this_machine_answers_about_its_release_rather_than_warning() {
+        // Every system the workspace supports has a place to read this from. A warning
+        // here is a gap in one of the three readers, not a quirk of the machine.
+        let ctx = context("system.info");
+        let output = SystemInfo::call(&ctx, Params {}).unwrap();
+        let warnings = ctx.warnings();
+        assert!(
+            warnings.is_empty(),
+            "the release could not be read on this system: {warnings:?}"
+        );
+        assert!(output.os_release.is_some(), "{output:?}");
     }
 
     #[test]
