@@ -7,7 +7,12 @@ Every notable change to SOLAR, newest first. The format follows
 The protocol has a version of its own, `solar/1`, which is not this one. A change to the
 protocol is stated here in its own line.
 
-## [Unreleased]
+## [0.3.0] - 2026-09-27
+
+The decisions that had been made alone become records, and the three things ZENITH needed
+from SOLAR are there. No new functional API: `solar.set_log_level` moves where the
+diagnostics go and nothing else. Every change is additive, the protocol stays `solar/1`,
+and no API changed shape.
 
 ### Added
 
@@ -177,6 +182,6 @@ unless it asks for one, the protocol stays `solar/1`, and no API changed shape.
 - `docs/STYLE.md`, `docs/adr/` with the nine settled decisions, `CONTRIBUTING.md`, a pull
   request template and `CODEOWNERS`.
 
-[Unreleased]: https://github.com/nipscernlab/solar/compare/v0.2.0...main
+[0.3.0]: https://github.com/nipscernlab/solar/releases/tag/v0.3.0
 [0.2.0]: https://github.com/nipscernlab/solar/releases/tag/v0.2.0
 [0.1.0]: https://github.com/nipscernlab/solar/commits/main
