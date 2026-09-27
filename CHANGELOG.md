@@ -11,6 +11,15 @@ protocol is stated here in its own line.
 
 ### Added
 
+- **A documented, versioned recording format**, the third of the three things ZENITH asked
+  for. A recording now begins with a header naming `solar_recording`, its format version,
+  and [`docs/RECORDING.md`](docs/RECORDING.md) is the normative specification, with a JSON
+  Schema for one line that a test compiles out of the document and validates real
+  recordings against. `solar replay` refuses a major version it does not know, saying
+  which version the file declares, which one it reads and what to do; a file with no
+  header, written before the format was versioned, is read as 1.0.0 and says so. A
+  recording written by hand in that shape replays, which is what makes the document worth
+  following. Contract section 12.
 - **`capabilities` in the manifest**, at its root, which is the first of the three things
   ZENITH asked SOLAR for: whether batches are accepted and how many elements one may hold,
   whether cancellation exists and which method performs it, whether notifications are
