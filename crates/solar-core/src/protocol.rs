@@ -645,10 +645,135 @@ pub const fn protocol_name() -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
     use std::fmt::Write as _;
 
     fn err_of(line: &str) -> RequestError {
         parse_request(line).expect_err("this line should not parse")
+    }
+
+    #[test]
+    fn the_protocol_name_is_the_one_the_contract_states() {
+        assert_eq!(protocol_name(), "solar/1");
+        assert_eq!(protocol_name(), PROTOCOL);
+    }
+
+    #[test]
+    fn a_response_knows_whether_it_succeeded() {
+        let meta = Meta::new(
+            None,
+            None,
+            None,
+            "2026-09-27T00:00:00.000000Z".to_owned(),
+            0,
+        );
+        let good = Response::success(
+            Some(RequestId::Number(1.into())),
+            Value::Bool(true),
+            meta.clone(),
+            Vec::new(),
+        );
+        assert!(good.is_success());
+        assert_eq!(good.status(), None, "a success has no status");
+
+        let bad = Response::failure(
+            Some(RequestId::Number(1.into())),
+            SolarError::new(Reason::ParseError, "no"),
+            meta,
+        );
+        assert!(!bad.is_success());
+        assert_eq!(bad.status(), Some(Status::InvalidArgument));
+    }
+
+    #[test]
+    fn an_object_of_exactly_the_limit_is_kept_and_one_byte_more_is_described() {
+        // The boundary of `brief`, on the branch for a composite: the limit is a limit,
+        // and past it the value is replaced by a sentence about it.
+        let padding = |length: usize| Value::String("x".repeat(length));
+
+        // `{"a":"xxx..."}` is eight bytes of envelope around the string.
+        let fits = json!({"a": padding(MAX_RECEIVED_BYTES - 8)});
+        assert_eq!(fits.to_string().len(), MAX_RECEIVED_BYTES);
+        assert_eq!(brief(&fits), fits, "exactly the limit is not past it");
+
+        let over = json!({"a": padding(MAX_RECEIVED_BYTES - 7)});
+        assert_eq!(over.to_string().len(), MAX_RECEIVED_BYTES + 1);
+        let described = brief(&over);
+        assert!(
+            described
+                .as_str()
+                .is_some_and(|text| text.contains("object")),
+            "one byte past the limit is described rather than quoted: {described}"
+        );
+
+        // And the same boundary on the branch for an array, where `["..."]` is four
+        // bytes of envelope rather than eight.
+        let fits = json!([padding(MAX_RECEIVED_BYTES - 4)]);
+        assert_eq!(fits.to_string().len(), MAX_RECEIVED_BYTES);
+        assert_eq!(brief(&fits), fits);
+
+        let over = json!([padding(MAX_RECEIVED_BYTES - 3)]);
+        let described = brief(&over);
+        assert!(
+            described
+                .as_str()
+                .is_some_and(|text| text.contains("array")),
+            "{described}"
+        );
+    }
+
+    #[test]
+    fn the_hint_for_a_bad_method_name_offers_lower_case_only_when_that_would_work() {
+        // `Solar.Ping` lower cased is a valid name, so the hint says so.
+        let failed = err_of(r#"{"jsonrpc":"2.0","id":1,"method":"Solar.Ping"}"#);
+        let hint = failed.error.details()[0].hint.clone().unwrap_or_default();
+        assert!(
+            hint.contains("solar.ping"),
+            "it offers the correction: {hint}"
+        );
+
+        // `nope` is already lower case and still not a name, so offering lower case would
+        // be nonsense: the hint explains the shape instead.
+        let failed = err_of(r#"{"jsonrpc":"2.0","id":1,"method":"nope"}"#);
+        let hint = failed.error.details()[0].hint.clone().unwrap_or_default();
+        assert!(
+            hint.contains("namespace.verb_noun"),
+            "it explains the shape: {hint}"
+        );
+        assert!(
+            !hint.contains("lower case: write"),
+            "and does not offer a correction that is the same string: {hint}"
+        );
+    }
+
+    #[test]
+    fn the_last_resort_envelope_is_json_whatever_the_detail_holds() {
+        // Built without serde, so that it cannot fail in turn. Every character that would
+        // break the string it is pasted into has to be dealt with by hand.
+        let detail = "a \"quote\", a \\ backslash, a\nnewline, a\ttab, and \u{1}\u{1f} control";
+        let line = Response::fallback_line(detail);
+
+        let value: Value =
+            serde_json::from_str(&line).expect("the last resort envelope must be JSON");
+        assert_eq!(value["error"]["data"]["reason"], "SERIALIZATION_FAILED");
+
+        let received = value["error"]["data"]["details"][0]["received"]
+            .as_str()
+            .expect("the detail is echoed");
+        assert!(received.contains("a \"quote\""), "{received}");
+        assert!(received.contains(r"a \ backslash"), "{received}");
+        assert!(
+            !received.contains('\n') && !received.contains('\t'),
+            "a newline and a tab become spaces: {received:?}"
+        );
+        assert!(
+            !received.chars().any(|c| (c as u32) < 0x20),
+            "and so does every other control character: {received:?}"
+        );
+        assert!(
+            received.contains(" control"),
+            "what is not a control character is kept: {received}"
+        );
     }
 
     #[test]

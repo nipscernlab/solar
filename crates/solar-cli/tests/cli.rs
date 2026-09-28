@@ -755,3 +755,52 @@ fn a_recording_written_by_something_else_replays() {
 
     let _ = std::fs::remove_dir_all(&directory);
 }
+
+#[test]
+fn a_human_diagnostic_names_its_level() {
+    // The word a level prints as is what a person scans the log for, and nothing checked
+    // it: a level that printed the wrong word, or none, read the same to every test.
+    let output = solar_with_env(&["call", "solar.ping"], "SOLAR_LOG", "trace");
+    let diagnostics = stderr_of(&output);
+    assert!(
+        diagnostics.contains("TRACE"),
+        "a human line names its level: {diagnostics}"
+    );
+}
+
+#[test]
+fn a_line_too_long_is_reported_at_warn_and_not_only_at_trace() {
+    // The one thing SOLAR says at `warn`. At the default level it says nothing, and at
+    // trace everything else drowns it, so this is the level that proves it is written.
+    let mut oversized = String::from(r#"{"jsonrpc":"2.0","id":1,"method":"solar.ping","pad":""#);
+    oversized.push_str(&"x".repeat(17 * 1024 * 1024));
+    oversized.push_str(
+        "\"}
+",
+    );
+
+    let mut child = Command::new(SOLAR)
+        .args(["serve", "--stdio"])
+        .env("SOLAR_LOG", "warn")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("the binary must run");
+    child
+        .stdin
+        .take()
+        .expect("stdin was piped")
+        .write_all(oversized.as_bytes())
+        .expect("the session must accept input");
+    let output = child.wait_with_output().expect("the session must end");
+
+    let response = parse(&stdout_of(&output));
+    assert_eq!(response["error"]["data"]["reason"], "MESSAGE_TOO_LARGE");
+
+    let diagnostics = stderr_of(&output);
+    assert!(
+        diagnostics.contains("WARN") && diagnostics.contains("refused"),
+        "the refusal is written at warn: {diagnostics}"
+    );
+}

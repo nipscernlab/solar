@@ -288,6 +288,42 @@ mod tests {
     const A_PING: &str = r#"{"jsonrpc":"2.0","id":1,"result":{"data":{"pong":true,"received_at":"2026-09-27T05:15:05.235392Z"},"meta":{"request_id":1,"method":"solar.ping","api_version":"1.0.0","solar_version":"0.1.0","protocol":"solar/1","started_at":"2026-09-27T05:15:05.235074Z","duration_us":348,"os":"windows","arch":"x86_64"},"warnings":[]}}"#;
 
     #[test]
+    fn a_timestamp_is_the_exact_shape_solar_writes_and_nothing_else() {
+        // Each condition earns its place: a string that fails exactly one of them is not
+        // a timestamp, and would otherwise be replaced in a response being compared.
+        assert!(is_a_timestamp("2026-09-27T05:15:05.235392Z"));
+
+        for not_one in [
+            "2026-09-27T05:15:05.235392",   // no Z at the end
+            "2026-09-27T05:15:05.23539Z",   // too short by one digit
+            "2026-09-27T05:15:05.2353921Z", // too long by one
+            "2026-09-27 05:15:05.235392Z",  // a space where the T belongs
+            "2026/09/27T05:15:05.235392Z",  // a slash where the dash belongs
+            "2026-09-27T05:15:05,235392Z",  // a comma where the point belongs
+            "2026-09-27T05:15:05.23539aZ",  // a letter among the digits
+            "",
+        ] {
+            assert!(!is_a_timestamp(not_one), "{not_one:?} is not a timestamp");
+        }
+    }
+
+    #[test]
+    fn a_timestamp_is_replaced_wherever_it_sits() {
+        // Inside an object, inside an array, and inside an array inside an object: a
+        // response holds them in all three places.
+        let response = r#"{"result":{"data":{"times":["2026-09-27T05:15:05.235392Z","no"],
+            "at":"2026-09-27T05:15:06.000000Z"},"meta":{},"warnings":[]}}"#;
+        let cleaned = without_volatile_values(response);
+
+        assert_eq!(cleaned["result"]["data"]["at"], "[timestamp]");
+        assert_eq!(cleaned["result"]["data"]["times"][0], "[timestamp]");
+        assert_eq!(
+            cleaned["result"]["data"]["times"][1], "no",
+            "what is not a timestamp is left alone"
+        );
+    }
+
+    #[test]
     fn a_session_is_written_down_in_order_with_its_times() {
         let mut written = Vec::new();
         let mut recorder = Recorder::new(&mut written);

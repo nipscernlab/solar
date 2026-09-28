@@ -178,11 +178,6 @@ pub fn log_format() -> Format {
     })
 }
 
-/// Forces the format, ignoring the environment. Only the first call has any effect.
-pub fn set_format(format: Format) {
-    let _ = FORMAT.set(format);
-}
-
 /// The level this process logs at, as a number, so that it can change while SOLAR runs.
 ///
 /// [`NOT_READ`] means the environment has not been consulted yet. It is read once, on the
@@ -297,11 +292,6 @@ pub fn warn(message: &str) {
 /// Logs one line per call.
 pub fn info(message: &str) {
     log(Level::Info, message);
-}
-
-/// Logs what dispatch decided.
-pub fn debug(message: &str) {
-    log(Level::Debug, message);
 }
 
 /// Logs the traffic itself.

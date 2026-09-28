@@ -121,9 +121,11 @@ thrown away afterwards and keeps the report as an artefact, so nothing is lost.
 `cargo xtask mutants` says so and refuses; `SOLAR_MUTANTS_ANYWAY=1 cargo xtask mutants`
 lifts the refusal for somebody who has the disk and means it.
 
-**A build here stays under 10 GB.** The dev and test profiles carry line tables and no
-more, dependencies carry no debug information, and `cargo xtask ci` removes the trees it
-built in when it finishes. `STATUS.md` records what each of those was worth.
+**A build here stays under 20 GB**, raised from 10 by the architect on 27 September 2026.
+The dev and test profiles carry line tables and no more, dependencies carry no debug
+information, and `cargo xtask ci` removes the trees it built in when it finishes.
+`STATUS.md` records what each of those was worth: the measured footprint is 3.07 GB, so
+the room is there for a later stage rather than for letting this one grow.
 
 `cargo xtask load` needs a release build to measure, and says so if there is none. What it
 reports is the latency a client sees, not the time dispatch spends, because that is the

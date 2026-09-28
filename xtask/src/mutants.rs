@@ -19,22 +19,24 @@ use std::process::Command;
 
 /// How many surviving mutants the shipped crates are allowed.
 ///
-/// **This number is inherited, not measured, and the next full run replaces it.** It came
-/// from a run with two faults: the mutants were judged by the mutated crate's own tests
-/// rather than by the workspace suite, and a shared target directory let one mutant be
-/// judged by an artefact built from another. Both are fixed, and a partial run under the
-/// corrected configuration left five survivors in the first 276 mutants rather than the
-/// forty-odd the old configuration would have reported for the same files, so the real
-/// number is far below this.
+/// **Measured**, on 27 September 2026, by the weekly job on `ubuntu-latest`: 646 mutants,
+/// 483 caught, 13 that hung the suite, which is the suite noticing, 107 that could not be
+/// built, and **43 that survived**. The stage that followed killed what could be killed
+/// here, and this is what the next run has to beat.
 ///
-/// It stays at 98 until a complete run says otherwise, because a ceiling set by guessing
-/// is a check that fails for the wrong reason. The weekly job produces that run; lower
-/// this to what it reports, and never raise it.
+/// The number that stood here before was 98, and it was not a measurement: it came from a
+/// run in which mutants were judged by the mutated crate's own tests rather than by the
+/// workspace suite, and in which a shared target directory let one mutant be judged by an
+/// artefact built from another. Both were fixed in stage three.
 ///
-/// Some survivors cannot be killed on every system: a mutant inside a `cfg` block for
-/// another operating system is never compiled here, so nothing can notice it. Those are
-/// judged on the system they belong to, which is why the weekly job runs on Linux.
-pub(crate) const CEILING: usize = 98;
+/// **A mutant inside a `cfg` block for another operating system cannot be judged by this
+/// job**, which runs on Linux: the code is never compiled, so changing it changes nothing
+/// and the mutant always survives. Eleven of the survivors are those. The architect
+/// approved, on 27 September 2026, running the job on all three systems in stage five, so
+/// that each of them is judged where it is compiled; `STATUS.md` records that decision.
+///
+/// It only ever goes down. Lower it whenever some are killed; never raise it.
+pub(crate) const CEILING: usize = 43;
 
 /// Runs the mutation suite.
 ///

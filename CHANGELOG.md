@@ -7,7 +7,12 @@ Every notable change to SOLAR, newest first. The format follows
 The protocol has a version of its own, `solar/1`, which is not this one. A change to the
 protocol is stated here in its own line.
 
-## [Unreleased]
+## [0.3.0] - 2026-09-27
+
+The decisions that had been made alone become records, and the three things ZENITH needed
+from SOLAR are there. No new functional API: `solar.set_log_level` moves where the
+diagnostics go and nothing else. Every change is additive, the protocol stays `solar/1`,
+and no API changed shape.
 
 ### Added
 
@@ -43,6 +48,25 @@ protocol is stated here in its own line.
 
 ### Changed
 
+- The mutation score, measured rather than inherited: **646 mutants, 483 caught, 13 that
+  hung the suite, 107 unviable and 43 survivors**, from the weekly job run by hand on
+  27 September 2026. Twenty-nine of the survivors are killed by tests of observable
+  behaviour, two were dead code and are gone, eleven sit inside `cfg` blocks for another
+  operating system and cannot be judged by a job that runs on Linux, and one is reachable
+  only when a handler panics. The ceiling is **43**, the number measured, and the weekly
+  job fails at 44.
+- Decided by the architect on 27 September 2026, for stage five: the weekly mutation job
+  will run on `ubuntu-latest`, `windows-latest` and `macos-latest` in parallel, so that the
+  eleven platform-specific survivors are judged on the system that compiles them. The
+  repository is public, so the standard runners cost nothing.
+- `logging::set_format` and `logging::debug` are removed: neither had a caller, which is
+  why nothing noticed them changing.
+- The rules for reading a macOS `SystemVersion.plist` and for turning the three numbers
+  Windows reports into a release are compiled and tested on every system. Only the foreign
+  call itself is conditional now.
+- The build footprint budget is **20 GB**, raised from 10 by the architect on
+  27 September 2026. Nothing done to fit under 10 is undone; the measured footprint is
+  3.07 GB.
 - `cargo xtask compat` reads the **major** of `schema_version` rather than the whole
   string: record 22 says a consumer refuses a manifest whose major differs and reads one
   whose minor moved, so a minor bump is additive. It had classified every change of that
@@ -177,6 +201,6 @@ unless it asks for one, the protocol stays `solar/1`, and no API changed shape.
 - `docs/STYLE.md`, `docs/adr/` with the nine settled decisions, `CONTRIBUTING.md`, a pull
   request template and `CODEOWNERS`.
 
-[Unreleased]: https://github.com/nipscernlab/solar/compare/v0.2.0...main
+[0.3.0]: https://github.com/nipscernlab/solar/releases/tag/v0.3.0
 [0.2.0]: https://github.com/nipscernlab/solar/releases/tag/v0.2.0
 [0.1.0]: https://github.com/nipscernlab/solar/commits/main

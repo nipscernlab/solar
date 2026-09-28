@@ -377,10 +377,15 @@ fn check_entry(entry: &ApiEntry, problems: &mut Vec<RegistryProblem>) {
 
 /// Whether this SOLAR build is still below its first stable release.
 fn solar_is_before_1_0() -> bool {
-    SOLAR_VERSION
-        .split('.')
-        .next()
-        .is_some_and(|major| major == "0")
+    is_before_1_0(SOLAR_VERSION)
+}
+
+/// The same question about any version, so that both answers can be tested.
+///
+/// The build is below 1.0.0 today and will not always be, and a rule nothing can check
+/// until the day it changes is a rule that changes wrongly on that day.
+fn is_before_1_0(version: &str) -> bool {
+    version.split('.').next().is_some_and(|major| major == "0")
 }
 
 /// Whether a string is `major.minor.patch`, the only shape SOLAR versions take.
@@ -600,6 +605,25 @@ mod tests {
         fn call(_ctx: &Context, params: EchoParams) -> Result<EchoOutput, SolarError> {
             Ok(EchoOutput { text: params.text })
         }
+    }
+
+    #[test]
+    fn what_counts_as_before_the_first_stable_release() {
+        // Everything is experimental until SOLAR 1.0.0, record 7, so this decides whether
+        // a stable API is allowed. It answers true today and will not always, and a rule
+        // nothing checks until the day it changes is a rule that changes wrongly.
+        assert!(is_before_1_0("0.1.0"));
+        assert!(is_before_1_0("0.3.0"));
+        assert!(is_before_1_0("0.99.0"));
+
+        assert!(!is_before_1_0("1.0.0"));
+        assert!(!is_before_1_0("2.0.0"));
+        assert!(!is_before_1_0("10.0.0"), "ten is not zero");
+
+        assert!(
+            is_before_1_0(SOLAR_VERSION),
+            "and this build really is below it"
+        );
     }
 
     #[test]
