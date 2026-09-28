@@ -1988,7 +1988,7 @@ dependencies = [
 
 [[package]]
 name = "solar-apis"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "criterion",
  "dhat",
@@ -2003,7 +2003,7 @@ dependencies = [
 
 [[package]]
 name = "solar-cli"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "clap",
  "criterion",
@@ -2015,7 +2015,7 @@ dependencies = [
 
 [[package]]
 name = "solar-core"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "schemars",
  "serde",
@@ -2598,7 +2598,7 @@ checksum = "3ad82d2a33cdc9674dc7465672f271e096168fcdbe0f799d9e6db8c5892679dc"
 
 [[package]]
 name = "xtask"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "serde_json",
  "solar-apis",

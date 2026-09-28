@@ -804,3 +804,85 @@ fn a_line_too_long_is_reported_at_warn_and_not_only_at_trace() {
         "the refusal is written at warn: {diagnostics}"
     );
 }
+
+#[test]
+fn an_api_name_typed_as_a_command_says_which_command_would_work() {
+    // `solar system.info` is a natural thing to type: the subcommands and the method
+    // names sit in the same place on the line. Answering only `unrecognized subcommand`
+    // tells the caller nothing about the one word that would have made it work.
+    let output = solar(&["system.info"]);
+    assert_eq!(
+        output.status.code(),
+        Some(2),
+        "a misuse exits 2, as section 14 of the contract says"
+    );
+
+    let complaint = stderr_of(&output);
+    assert!(
+        complaint.contains("solar call system.info"),
+        "it names the command that works: {complaint}"
+    );
+    assert!(
+        complaint.contains("solar describe system.info"),
+        "and the one that explains it: {complaint}"
+    );
+    assert!(
+        stdout_of(&output).is_empty(),
+        "nothing went to standard output: {}",
+        stdout_of(&output)
+    );
+}
+
+#[test]
+fn a_misspelled_api_typed_as_a_command_suggests_the_one_that_exists() {
+    // The same edit distance the protocol uses for a misspelled method, so a person who
+    // mistypes on the command line is answered the way a caller who mistypes on the wire
+    // is: `solar.pign` is one transposition from `solar.ping`.
+    let output = solar(&["solar.pign"]);
+    assert_eq!(output.status.code(), Some(2));
+
+    let complaint = stderr_of(&output);
+    assert!(
+        complaint.contains("solar.ping"),
+        "it suggests the API that exists: {complaint}"
+    );
+    assert!(
+        complaint.contains("solar call solar.ping"),
+        "with the command that calls it: {complaint}"
+    );
+}
+
+#[test]
+fn a_word_that_is_neither_a_command_nor_an_api_is_left_to_clap() {
+    // No suggestion is invented for a word that resembles nothing: clap explains what the
+    // commands are, which is what that reader needs.
+    let output = solar(&["wildly_unrelated"]);
+    assert_eq!(output.status.code(), Some(2));
+
+    let complaint = stderr_of(&output);
+    assert!(
+        complaint.contains("unrecognized subcommand"),
+        "clap says its piece: {complaint}"
+    );
+    assert!(
+        !complaint.contains("Did you mean the API"),
+        "and nothing is invented: {complaint}"
+    );
+}
+
+#[test]
+fn asking_for_help_still_succeeds_and_prints_to_standard_output() {
+    // The parser reports `--help` as an error to the program, and it is not one: a reader
+    // who asked for help got what they asked for.
+    let output = solar(&["--help"]);
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "asking for help is not a misuse"
+    );
+    assert!(
+        stdout_of(&output).contains("solar call"),
+        "the help names the commands: {}",
+        stdout_of(&output)
+    );
+}

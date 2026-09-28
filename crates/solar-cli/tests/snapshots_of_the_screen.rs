@@ -90,3 +90,60 @@ fn the_versions_and_the_build() {
 fn the_help_text() {
     assert_snapshot!(screen(&["--help"]));
 }
+
+#[test]
+fn every_version_in_the_list_starts_in_the_same_column() {
+    // The defect this pins down: the name column was a fixed eighteen, and
+    // `solar.set_log_level` is nineteen, so its version sat one column to the right of
+    // every other. A snapshot alone would have recorded the crooked layout as correct,
+    // which is why this measures the columns rather than comparing the text.
+    let listing = screen(&["list"]);
+
+    let columns: Vec<usize> = listing
+        .lines()
+        .filter(|line| line.starts_with("  solar.") || line.starts_with("  system."))
+        .map(|line| {
+            let name_at = line.find(char::is_alphabetic).unwrap_or(0);
+            let after_name = line[name_at..]
+                .find(' ')
+                .map_or(line.len(), |offset| name_at + offset);
+            line[after_name..]
+                .find(|c: char| !c.is_whitespace())
+                .map_or(line.len(), |offset| after_name + offset)
+        })
+        .collect();
+
+    assert!(columns.len() >= 2, "there are APIs to line up: {listing}");
+    let first = columns[0];
+    assert!(
+        columns.iter().all(|column| *column == first),
+        "every version starts in the same column, and these start in {columns:?}:\n{listing}"
+    );
+}
+
+#[test]
+fn the_longest_name_still_leaves_two_spaces_before_its_version() {
+    // The column is sized from the longest name, so the longest row is the one that would
+    // lose its separation if the width were ever computed as the name length alone.
+    let listing = screen(&["list"]);
+    let longest = listing
+        .lines()
+        .filter(|line| line.starts_with("  solar.") || line.starts_with("  system."))
+        .max_by_key(|line| {
+            line.split_whitespace()
+                .next()
+                .map_or(0, |name| name.chars().count())
+        })
+        .unwrap_or_default();
+
+    let name = longest.split_whitespace().next().unwrap_or_default();
+    let after_name = longest.find(name).unwrap_or(0) + name.len();
+    let gap = longest[after_name..]
+        .chars()
+        .take_while(|c| *c == ' ')
+        .count();
+    assert!(
+        gap >= 2,
+        "the longest name keeps its gap: {gap} space(s) in {longest:?}"
+    );
+}

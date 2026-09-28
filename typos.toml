@@ -29,6 +29,9 @@ color = "color"
 mesage = "mesage"
 # A truncation test cuts the string hello after three bytes.
 hel = "hel"
+# clap prints `unrecognized subcommand`, and the test that checks what a person sees has
+# to quote clap's spelling rather than ours. The prose around it says "not a command".
+unrecognized = "unrecognized"
 
 [files]
 extend-exclude = [

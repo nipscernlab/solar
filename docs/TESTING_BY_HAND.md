@@ -180,7 +180,22 @@ near the top of a longer document.
 ```
 
 The APIs this build answers to, one per line, with a version and a one line summary, then
-three lines telling you what to try next.
+three lines telling you what to try next. **The versions all start in the same column**,
+whatever the longest name happens to be; if one of them is out of line, that is a finding.
+
+### When you type the name of an API and forget `call`
+
+```bash
+./target/release/solar system.info || echo "exit $?"
+```
+
+An API name is not a command, and typing one is an easy mistake: the commands and the
+method names sit in the same place on the line. SOLAR says which command would have
+worked, `solar call system.info`, rather than only that the word was not recognised, and
+exits **2**, the code a misuse has. A name that is close to an API, such as
+`solar.pign`, is answered with the one that exists. A word that resembles nothing gets the
+ordinary list of commands, because inventing a suggestion there would send you somewhere
+that does not help.
 
 ### What one of them is, in detail
 

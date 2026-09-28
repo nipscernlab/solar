@@ -5,7 +5,7 @@ members = ["crates/solar-core", "crates/solar-apis", "crates/solar-cli", "xtask"
 exclude = ["fuzz"]
 
 [workspace.package]
-version = "0.3.0"
+version = "0.3.1"
 edition = "2024"
 rust-version = "1.97"
 license = "LicenseRef-NIPS-CERN-1.1"
@@ -15,8 +15,8 @@ homepage = "https://nipscern.com"
 publish = false
 
 [workspace.dependencies]
-solar-core = { path = "crates/solar-core", version = "0.3.0" }
-solar-apis = { path = "crates/solar-apis", version = "0.3.0" }
+solar-core = { path = "crates/solar-core", version = "0.3.1" }
+solar-apis = { path = "crates/solar-apis", version = "0.3.1" }
 
 clap = { version = "4.6", features = ["derive"] }
 criterion = "0.8"
