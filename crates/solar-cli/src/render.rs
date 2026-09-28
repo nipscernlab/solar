@@ -8,8 +8,12 @@ use std::io::Write;
 
 use serde_json::Value;
 
-/// The width of the name column of `solar list`.
-const NAME_WIDTH: usize = 18;
+/// The least the name column of `solar list` is ever narrowed to.
+///
+/// The column is sized from the longest name there really is, so this only matters when
+/// every name is short: a registry holding `a.b` alone still lines up with one holding
+/// `solar.ping`, which keeps the layout recognisable.
+const NAME_WIDTH_AT_LEAST: usize = 18;
 
 /// `solar list`: one line per API, widest first.
 pub(crate) fn list<W: Write>(out: &mut W, manifest: &Value) -> std::io::Result<()> {
@@ -29,10 +33,19 @@ pub(crate) fn list<W: Write>(out: &mut W, manifest: &Value) -> std::io::Result<(
     )?;
     writeln!(out)?;
 
+    // Sized from the longest name rather than fixed: a name longer than the column pushed
+    // its version a space to the right, and the columns stopped being columns.
+    let name_width = apis
+        .iter()
+        .map(|api| text(api, "name").chars().count())
+        .max()
+        .unwrap_or(0)
+        .max(NAME_WIDTH_AT_LEAST);
+
     for api in &apis {
         writeln!(
             out,
-            "  {:<NAME_WIDTH$}  {:<7}  {}",
+            "  {:<name_width$}  {:<7}  {}",
             text(api, "name"),
             text(api, "version"),
             text(api, "summary")

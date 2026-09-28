@@ -1321,5 +1321,5 @@
   "protocol": "solar/1",
   "schema_dialect": "https://json-schema.org/draft/2020-12/schema",
   "schema_version": "2.1.0",
-  "solar_version": "0.3.0"
+  "solar_version": "0.3.1"
 }

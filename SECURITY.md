@@ -39,5 +39,5 @@ is a bug worth reporting even if you cannot see how to exploit it.
 
 ## Versions
 
-SOLAR is `0.3.0`, tagged but not published as an artefact. When there are releases, this section will
+SOLAR is `0.3.1`, tagged but not published as an artefact. When there are releases, this section will
 say which ones get fixes. Until then, the fix goes on `main`.

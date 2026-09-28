@@ -7,6 +7,27 @@ Every notable change to SOLAR, newest first. The format follows
 The protocol has a version of its own, `solar/1`, which is not this one. A change to the
 protocol is stated here in its own line.
 
+## [0.3.1] - 2026-09-27
+
+Two things the architect found by using 0.3.0 by hand. Nothing else changed.
+
+### Fixed
+
+- **`solar system.info`, an API name typed without `call`, now says which command would
+  have worked.** The commands and the method names sit in the same place on the line, so
+  typing one for the other is an easy mistake, and clap's bare complaint about a
+  subcommand it does not know told the caller nothing about the one word that was
+  missing. A name that is a registered API is
+  answered with `solar call <name>` and `solar describe <name>`; a name close to one, by
+  the same edit distance the protocol uses for a misspelled method, is answered with the
+  API that exists. A word that resembles neither is left to clap, because inventing a
+  suggestion there would send the reader somewhere that does not help. The exit code is
+  still 2, which section 14 of the contract gives a misuse, and `--help` still exits 0.
+- **`solar list` sizes its name column from the longest name.** It was a fixed eighteen
+  characters, and `solar.set_log_level` is nineteen, so its version sat one column to the
+  right of every other. A test measures the columns rather than comparing the text, since
+  a snapshot alone would have recorded the crooked layout as correct.
+
 ## [0.3.0] - 2026-09-27
 
 The decisions that had been made alone become records, and the three things ZENITH needed
@@ -201,6 +222,7 @@ unless it asks for one, the protocol stays `solar/1`, and no API changed shape.
 - `docs/STYLE.md`, `docs/adr/` with the nine settled decisions, `CONTRIBUTING.md`, a pull
   request template and `CODEOWNERS`.
 
+[0.3.1]: https://github.com/nipscernlab/solar/releases/tag/v0.3.1
 [0.3.0]: https://github.com/nipscernlab/solar/releases/tag/v0.3.0
 [0.2.0]: https://github.com/nipscernlab/solar/releases/tag/v0.2.0
 [0.1.0]: https://github.com/nipscernlab/solar/commits/main

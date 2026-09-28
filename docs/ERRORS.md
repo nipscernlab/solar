@@ -25,7 +25,7 @@ and finds the reason just below it.
                 "hint":"Did you mean \"solar.ping\"? The edit distance is 2.",
                 "docs":"docs/ERRORS.md#not_found"}],
     "meta":{"request_id":1,"method":"solar.pnig","api_version":null,
-            "solar_version":"0.3.0","protocol":"solar/1",
+            "solar_version":"0.3.1","protocol":"solar/1",
             "started_at":"2026-09-26T21:41:03.123456Z","duration_us":58,
             "os":"windows","arch":"x86_64"}}}}
 ```

@@ -55,7 +55,7 @@ With text beside it, leave three spaces after the symbol, so text starts at colu
 ▄████              SOLAR
 ████████████████   The central API of the Constellation
 ████████████████   NIPS-CERN
-           ████▀   0.3.0
+           ████▀   0.3.1
  ▀████████████▀
    ▀▀██████▀▀
 ```

@@ -31,7 +31,7 @@ cargo build --release
 ```
 
 ```json
-{"jsonrpc":"2.0","id":1,"result":{"data":{"echo":"hi","pong":true,"received_at":"2026-09-27T21:29:14.129284Z"},"meta":{"request_id":1,"method":"solar.ping","api_version":"1.0.0","solar_version":"0.3.0","protocol":"solar/1","started_at":"2026-09-27T21:29:14.129134Z","duration_us":156,"os":"windows","arch":"x86_64"},"warnings":[]}}
+{"jsonrpc":"2.0","id":1,"result":{"data":{"echo":"hi","pong":true,"received_at":"2026-09-28T01:03:51.377864Z"},"meta":{"request_id":1,"method":"solar.ping","api_version":"1.0.0","solar_version":"0.3.1","protocol":"solar/1","started_at":"2026-09-28T01:03:51.377656Z","duration_us":214,"os":"windows","arch":"x86_64"},"warnings":[]}}
 ```
 
 Every other command in this file writes `solar` bare; put `target/release` on the `PATH`,
@@ -71,7 +71,7 @@ solar call solar.ping '{"mesage":"hi"}' || echo "exit $?"
 ```
 
 ```json
-{"jsonrpc":"2.0","id":1,"error":{"code":-32602,"message":"Invalid params for solar.ping: unknown field `mesage`, expected `message`.","data":{"status":"INVALID_ARGUMENT","reason":"UNKNOWN_FIELD","details":[{"field":"/mesage","expected":"one of: message","received":"hi","hint":"There is no mesage parameter. Did you mean message? A call that works: {\"message\":\"hi\"}.","docs":"docs/ERRORS.md#invalid_argument"}],"meta":{"request_id":1,"method":"solar.ping","api_version":"1.0.0","solar_version":"0.3.0","protocol":"solar/1","started_at":"2026-09-27T21:29:14.147749Z","duration_us":78,"os":"windows","arch":"x86_64"}}}}
+{"jsonrpc":"2.0","id":1,"error":{"code":-32602,"message":"Invalid params for solar.ping: unknown field `mesage`, expected `message`.","data":{"status":"INVALID_ARGUMENT","reason":"UNKNOWN_FIELD","details":[{"field":"/mesage","expected":"one of: message","received":"hi","hint":"There is no mesage parameter. Did you mean message? A call that works: {\"message\":\"hi\"}.","docs":"docs/ERRORS.md#invalid_argument"}],"meta":{"request_id":1,"method":"solar.ping","api_version":"1.0.0","solar_version":"0.3.1","protocol":"solar/1","started_at":"2026-09-28T01:03:51.409056Z","duration_us":85,"os":"windows","arch":"x86_64"}}}}
 ```
 
 Testing it by hand, from installing the toolchain to what to send back when something
@@ -114,15 +114,15 @@ solar list
 ```
 
 ```text
-SOLAR 0.3.0 speaks solar/1, and answers to 7 APIs:
+SOLAR 0.3.1 speaks solar/1, and answers to 7 APIs:
 
-  solar.cancel        1.0.0    Asks the call with this id to stop, and says what that did
-  solar.describe      1.0.0    Describes one API, with its schemas and its examples
-  solar.manifest      1.2.0    Returns the manifest of every API this build answers to
-  solar.ping          1.0.0    Answers immediately, to prove SOLAR is there
+  solar.cancel         1.0.0    Asks the call with this id to stop, and says what that did
+  solar.describe       1.0.0    Describes one API, with its schemas and its examples
+  solar.manifest       1.2.0    Returns the manifest of every API this build answers to
+  solar.ping           1.0.0    Answers immediately, to prove SOLAR is there
   solar.set_log_level  1.0.0    Changes how much SOLAR says about itself, for the rest of the process
-  solar.version       1.0.0    Reports the version, the protocol and the build metadata
-  system.info         1.2.0    Reports the operating system, the processor and the process
+  solar.version        1.0.0    Reports the version, the protocol and the build metadata
+  system.info          1.2.0    Reports the operating system, the processor and the process
 
   solar describe <method>   everything about one of them
   solar call <method>       the whole envelope, as an agent sees it

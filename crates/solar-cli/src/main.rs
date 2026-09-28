@@ -108,8 +108,82 @@ enum Command {
     Version,
 }
 
+/// Reads the command line, and says something useful when it is an API name.
+///
+/// `solar system.info` is a natural thing to type and an easy mistake to make: the
+/// subcommands and the method names sit in the same place on the line. clap answers
+/// `unrecognized subcommand`, which is true and tells the caller nothing about the one
+/// word that would have made it work.
+///
+/// This catches that one case before clap prints, and only that case: anything else is
+/// left to clap, which is better at it. The protocol already suggests a misspelled method
+/// name, with the same edit distance and the same ties, so a person who mistypes on the
+/// command line is answered the way a caller who mistypes on the wire is.
+fn parse_or_explain(dispatcher: &Dispatcher) -> Result<Cli, ExitCode> {
+    match Cli::try_parse() {
+        Ok(cli) => Ok(cli),
+        Err(complaint) => {
+            if let Some(typed) = unknown_subcommand(&complaint)
+                && let Some(hint) = looks_like_an_api(dispatcher, &typed)
+            {
+                eprintln!("solar: {typed} is not a command. {hint}");
+                return Err(ExitCode::from(Status::InvalidArgument.exit_code()));
+            }
+            // Whatever else it is, clap explains it better than this could.
+            let _ = complaint.print();
+            Err(ExitCode::from(if complaint.use_stderr() {
+                Status::InvalidArgument.exit_code()
+            } else {
+                0
+            }))
+        }
+    }
+}
+
+/// The word clap did not recognise, when that is what it was complaining about.
+fn unknown_subcommand(complaint: &clap::Error) -> Option<String> {
+    if complaint.kind() != clap::error::ErrorKind::InvalidSubcommand {
+        return None;
+    }
+    complaint
+        .context()
+        .find_map(|(kind, value)| match (kind, value) {
+            (clap::error::ContextKind::InvalidSubcommand, clap::error::ContextValue::String(s)) => {
+                Some(s.clone())
+            }
+            _ => None,
+        })
+}
+
+/// The sentence to add when the word typed is a method name, or nearly one.
+///
+/// `None` when it is neither, because then the word is simply not a command and inventing
+/// a suggestion would send the reader somewhere that does not help.
+fn looks_like_an_api(dispatcher: &Dispatcher, typed: &str) -> Option<String> {
+    let registry = dispatcher.registry()?;
+
+    if registry.get(typed).is_some() {
+        return Some(format!(
+            "It is an API. Call it with `solar call {typed}`, or read it with \
+             `solar describe {typed}`."
+        ));
+    }
+
+    let names: Vec<&str> = registry.names().collect();
+    let (closest, _) = *solar_core::text::suggestions(typed, names).first()?;
+    Some(format!(
+        "Did you mean the API {closest}? Call it with `solar call {closest}`. \
+         `solar list` shows them all."
+    ))
+}
+
 fn main() -> ExitCode {
-    let cli = Cli::parse();
+    let dispatcher = solar_apis::dispatcher();
+
+    let cli = match parse_or_explain(&dispatcher) {
+        Ok(cli) => cli,
+        Err(code) => return code,
+    };
 
     if let Some(level) = cli.log.as_deref() {
         let Some(level) = Level::parse(level) else {
@@ -120,8 +194,6 @@ fn main() -> ExitCode {
         };
         logging::set_level(level);
     }
-
-    let dispatcher = solar_apis::dispatcher();
 
     let outcome = match cli.command {
         Command::Call { method, params } => {
