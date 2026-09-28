@@ -266,9 +266,15 @@ not equivalent, and excluding it would be a lie about why it survives.
 **The ceiling is 43**, the number measured, and the weekly job fails at 44. It only ever
 goes down.
 
-**What would close the rest:** running the mutation job on all three systems rather than
-on Linux alone, which is three times 75 minutes a week. That is a decision for the
-architect, not one to take alone.
+**What closes the rest, decided by the architect on 27 September 2026, for stage five:**
+the weekly mutation job runs on `ubuntu-latest`, `windows-latest` and `macos-latest`, in
+parallel, so that the eleven platform-specific mutants are judged on the system that
+compiles them. This repository is public, so the standard runners cost nothing, and three
+jobs in parallel take the wall clock of one.
+
+It is scheduled rather than done: this stage measured the score and killed what it could,
+and changing the shape of the job belongs with the stage that will read its three
+reports.
 
 ## What ZENITH asked for, and what it got
 
@@ -471,7 +477,8 @@ reaches the laboratory. Releases, distribution, installers and signing.
 **Known gaps, in the order they will start to hurt.**
 
 - The survivors listed above, each one a line nothing checks. The ceiling goes down as
-  they fall and never up.
+  they fall and never up. Eleven of them wait on the three-system mutation job that the
+  architect approved on 27 September 2026 for stage five.
 - `system.info` reporting the release of macOS has never run on a Mac outside GitHub's
   runners. That is what [`docs/TESTING_BY_HAND.md`](docs/TESTING_BY_HAND.md) is for.
 - The third thing ZENITH asked for is closed in SOLAR and open in ZENITH: the format is

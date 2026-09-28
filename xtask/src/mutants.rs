@@ -31,8 +31,9 @@ use std::process::Command;
 ///
 /// **A mutant inside a `cfg` block for another operating system cannot be judged by this
 /// job**, which runs on Linux: the code is never compiled, so changing it changes nothing
-/// and the mutant always survives. `STATUS.md` says how many of the survivors those are,
-/// and what it would take to judge them.
+/// and the mutant always survives. Eleven of the survivors are those. The architect
+/// approved, on 27 September 2026, running the job on all three systems in stage five, so
+/// that each of them is judged where it is compiled; `STATUS.md` records that decision.
 ///
 /// It only ever goes down. Lower it whenever some are killed; never raise it.
 pub(crate) const CEILING: usize = 43;

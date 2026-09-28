@@ -55,6 +55,10 @@ and no API changed shape.
   operating system and cannot be judged by a job that runs on Linux, and one is reachable
   only when a handler panics. The ceiling is **43**, the number measured, and the weekly
   job fails at 44.
+- Decided by the architect on 27 September 2026, for stage five: the weekly mutation job
+  will run on `ubuntu-latest`, `windows-latest` and `macos-latest` in parallel, so that the
+  eleven platform-specific survivors are judged on the system that compiles them. The
+  repository is public, so the standard runners cost nothing.
 - `logging::set_format` and `logging::debug` are removed: neither had a caller, which is
   why nothing noticed them changing.
 - The rules for reading a macOS `SystemVersion.plist` and for turning the three numbers
