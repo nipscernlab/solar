@@ -7,6 +7,18 @@ Every notable change to SOLAR, newest first. The format follows
 The protocol has a version of its own, `solar/1`, which is not this one. A change to the
 protocol is stated here in its own line.
 
+## [Unreleased]
+
+### Fixed
+
+- **The documents counted eleven statuses, and the table has twelve.** `CANCELLED`
+  joined the canonical statuses in 0.2.0, with cancellation, and the contract, the error
+  catalogue and the README went on saying eleven. They say twelve now. Nothing in the
+  code changed.
+- **Section 11 of the contract gave the manifest layout as `2.0.0`**, while the manifest
+  has been `2.1.0` since `capabilities` arrived, which section 8.2 already said. It gives
+  `2.1.0` now, with the step that took it there.
+
 ## [0.3.1] - 2026-09-27
 
 Two things the architect found by using 0.3.0 by hand. Nothing else changed.

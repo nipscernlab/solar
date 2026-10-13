@@ -63,8 +63,9 @@ requests**, each with its own `meta`, up to 64 elements:
 <-- [{"jsonrpc":"2.0","id":1,"result":{...}},{"jsonrpc":"2.0","id":2,"result":{...}}]
 ```
 
-An error carries a canonical status, the same eleven Google and gRPC use, a finer grained
-reason, and details that name the position, what was expected, what arrived, and what to do:
+An error carries a canonical status, one of twelve that Google and gRPC use, a finer
+grained reason, and details that name the position, what was expected, what arrived, and
+what to do:
 
 ```bash
 solar call solar.ping '{"mesage":"hi"}' || echo "exit $?"

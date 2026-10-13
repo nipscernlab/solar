@@ -1,6 +1,6 @@
 # The SOLAR error catalogue
 
-Every SOLAR error carries a `status` and a `reason`. The status is one of eleven canonical
+Every SOLAR error carries a `status` and a `reason`. The status is one of twelve canonical
 codes, the same ones used by Google and by gRPC, and it answers *what kind of failure was
 this*. The reason is a finer grained constant, and it answers *which failure exactly*. A
 reason belongs to exactly one status.
