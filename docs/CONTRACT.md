@@ -170,7 +170,7 @@ reused for a different meaning.
 - `code` is the JSON-RPC integer code, fixed by the table in section 6.1.
 - `message` is one sentence of English prose, capitalised, ending in a full stop. It names
   the method when a method is known. It is written for a human reading a terminal.
-- `data.status` is one of the eleven canonical status codes of section 6.1. These are the
+- `data.status` is one of the twelve canonical status codes of section 6.1. These are the
   codes used by Google and by gRPC, so that a caller that already knows them needs to learn
   nothing new.
 - `data.reason` is a finer grained uppercase constant that identifies the exact failure
@@ -492,10 +492,10 @@ session does not grow with every call it has ever answered.
   a way that breaks a caller. Adding an API never changes it.
 - **API**: each API carries its own semantic version. A breaking change to its parameters or
   its output is a major bump of that API alone.
-- **Manifest**: `schema_version`, semantic, currently `2.0.0`. A consumer MUST reject a
+- **Manifest**: `schema_version`, semantic, currently `2.1.0`. A consumer MUST reject a
   manifest whose major differs from the one it was written against. It went to `2.0.0`
   when the schemas stopped being self-contained and began sharing the `$defs` of section
-  8.1.
+  8.1, and to `2.1.0` when `capabilities` arrived, section 8.2.
 - **SOLAR**: the version of the build, reported in `meta.solar_version`.
 
 ## 12. Recording a session
